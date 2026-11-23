@@ -85,3 +85,12 @@ scratch/
 *.exe
 *.dll
 *.pdb
+
+# ---- Roblox / Rojo -----------------------------------------------------------
+# Generated place files - always rebuild them with `rojo build`.
+build.rbxl
+build.rbxlx
+*.rbxl
+*.rbxlx
+*.rbxm
+*.rbxmx

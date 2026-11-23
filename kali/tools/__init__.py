@@ -14,6 +14,7 @@ from .user import AskUserQuestion
 from .plan import EnterPlanMode, ExitPlanMode
 from .skill_tool import Skill
 from .toolsearch import ToolSearch
+from .roblox import RobloxPublish, RobloxStatus, roblox_tools
 
 
 def default_tools() -> dict[str, Tool]:
@@ -38,6 +39,8 @@ def default_tools() -> dict[str, Tool]:
     ]
     if os.environ.get("KALI_CODE_ENABLE_TASKS") == "0":
         tools.append(TodoWrite())
+    # Roblox publishing tools: only present when the environment is configured.
+    tools.extend(roblox_tools())
     return {t.name: t for t in tools}
 
 
@@ -53,4 +56,5 @@ __all__ = [
     "NotebookEdit", "WebFetch", "WebSearch", "TaskCreate", "TaskGet",
     "TaskList", "TaskUpdate", "TodoWrite", "Agent",
     "AskUserQuestion", "EnterPlanMode", "ExitPlanMode", "Skill", "ToolSearch",
+    "RobloxPublish", "RobloxStatus",
 ]

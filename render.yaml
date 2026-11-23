@@ -1,0 +1,48 @@
+# Render Blueprint for Kali Code.
+#
+# Deploy:  https://render.com/deploy?repo=https://github.com/1blo/KaliCode
+#
+# The free plan gives one web service with 512 MB RAM. It spins down after
+# 15 minutes of inactivity and wakes again on the next request, which takes
+# about a minute - the PWA shows a "connecting" state while that happens.
+#
+# Set these as environment variables in the Render dashboard (or as secrets):
+#   KALI_SERVER_TOKEN   the access token the phone must present (REQUIRED)
+#   NVIDIA_API_KEY      the model API key
+#   KALI_GIT_REPO       https://github.com/<you>/<your-roblox-game>  (optional)
+#   KALI_GIT_TOKEN      a GitHub token with write access to that repo (optional)
+#   ROBLOX_API_KEY      Open Cloud key with scope universe-places:write (optional)
+#   ROBLOX_UNIVERSE_ID  the experience's universe id (optional)
+#   ROBLOX_PLACE_ID     the place id to publish to (optional)
+
+services:
+  - type: web
+    name: kali-code
+    runtime: docker
+    dockerfilePath: ./docker/Dockerfile
+    dockerContext: .
+    plan: free
+    region: oregon
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: "8000"
+      - key: KALI_WORKSPACE
+        value: /workspace
+      - key: KALI_PERMISSION_MODE
+        value: default
+      # --- secrets: set these in the dashboard, do not commit them ---
+      - key: KALI_SERVER_TOKEN
+        sync: false
+      - key: NVIDIA_API_KEY
+        sync: false
+      - key: KALI_GIT_REPO
+        sync: false
+      - key: KALI_GIT_TOKEN
+        sync: false
+      - key: ROBLOX_API_KEY
+        sync: false
+      - key: ROBLOX_UNIVERSE_ID
+        sync: false
+      - key: ROBLOX_PLACE_ID
+        sync: false

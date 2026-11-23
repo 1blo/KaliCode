@@ -53,6 +53,14 @@ def build_parser() -> argparse.ArgumentParser:
                    help="load custom agent definitions from file")
     p.add_argument("--output-format", choices=["text", "json", "stream-json"], default="text")
     p.add_argument("--input-format", choices=["text", "stream-json"], default="text")
+    p.add_argument("--serve", action="store_true",
+                   help="run the mobile companion server instead of the REPL")
+    p.add_argument("--serve-host", default="0.0.0.0", dest="serve_host",
+                   help="bind address for --serve (default: 0.0.0.0)")
+    p.add_argument("--serve-port", type=int, default=8000, dest="serve_port",
+                   help="port for --serve (default: 8000)")
+    p.add_argument("--serve-token", default=None, dest="serve_token",
+                   help="access token the phone must present (default: generated)")
     p.add_argument("--version", action="version", version=f"Kali Code {__version__}")
     return p
 
@@ -75,6 +83,15 @@ def main(argv: list[str] | None = None) -> int:
 async def _amain(args) -> int:
     settings = load_settings()
     apply_env(settings)
+
+    # Mobile companion server: a different entry point, not a REPL mode.
+    if args.serve:
+        from .serve import serve
+
+        serve(host=args.serve_host, port=args.serve_port,
+              token=args.serve_token, cwd=os.getcwd(),
+              model=args.model, permission_mode=args.permission_mode)
+        return 0
 
     mode = args.permission_mode or settings.get("permissionMode", "default")
     if args.dangerously_skip_permissions:

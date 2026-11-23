@@ -18,6 +18,8 @@ An accurate copy of the Claude Code agentic coding CLI, reimplemented from scrat
 | **Permissions** | Rule-based allow/ask/deny, plan mode, `bypassPermissions`, `/alwaysallow` |
 | **Web search** | Multi-backend search engine with relevance checking and domain filtering |
 | **Discord** | Optional Rich Presence — logo, "Using Kali Code", AI-generated chat title, elapsed timer |
+| **Mobile** | PWA companion — chat, approve permissions and publish from your phone |
+| **Roblox** | Publish games headlessly via the Open Cloud API (Rojo + `.rbxl`, no Studio) |
 
 ---
 
@@ -188,6 +190,137 @@ third-party runtime dependency.
 
 ---
 
+## Mobile companion (PWA)
+
+Run Kali Code as a server and talk to it from your phone. The phone is a thin
+client — the agent, its tools and your permissions all run on the host.
+
+```bash
+pip install -e ".[server]"
+kali --serve --serve-host 0.0.0.0 --serve-port 8000
+```
+
+The server prints an access token. Open the served URL on your phone, paste the
+token, and you are connected.
+
+```
+GET  /                 PWA shell (installable to the home screen)
+GET  /health           health check
+WS   /ws               the agent session (JSON protocol)
+```
+
+The phone can:
+- send prompts and stream the reply
+- **approve or deny tool calls** (the important one — you see the exact command)
+- answer `AskUserQuestion` prompts and approve plans
+- interrupt a running turn
+
+### Deploying to Render (free tier)
+
+[`render.yaml`](render.yaml) is a ready-made Blueprint:
+
+```bash
+# or use the deploy button
+# https://render.com/deploy?repo=https://github.com/1blo/KaliCode
+```
+
+Set these as environment variables in the Render dashboard:
+
+| Variable | Purpose |
+|---|---|
+| `KALI_SERVER_TOKEN` | the token the phone presents (**required**) |
+| `NVIDIA_API_KEY` | the model API key |
+| `KALI_GIT_REPO` | `https://github.com/<you>/<your-roblox-game>` — cloned at boot |
+| `KALI_GIT_TOKEN` | a GitHub token with write access to that repo |
+| `ROBLOX_API_KEY` | Open Cloud key, scope `universe-places:write` |
+| `ROBLOX_UNIVERSE_ID` | the experience's universe id |
+| `ROBLOX_PLACE_ID` | the place id to publish to |
+
+Notes on the free tier:
+- The service **spins down after 15 minutes idle** and takes about a minute to
+  wake. The PWA shows a "connecting" state while that happens.
+- There is **no persistent disk**, so the game source is cloned from git on
+  every boot. Keep your work in git.
+- Free web services have no SSH — everything is driven over HTTP.
+
+---
+
+## Roblox publishing
+
+Kali Code can build and publish a Roblox game **without Roblox Studio**,
+using [Rojo](https://rojo.space) to generate the place file and the
+[Open Cloud Place Publishing API](https://create.roblox.com/docs/cloud/guides/usage-place-publishing)
+to upload it.
+
+### 1. Set up the project
+
+A Rojo project maps source folders to the instance tree. Start from the
+template in [`templates/rojo-project`](templates/rojo-project):
+
+```
+default.project.json     maps source folders to the instance tree
+src/server/             server Scripts (.server.lua)
+src/client/             client LocalScripts (.client.lua)
+src/shared/             shared modules
+src/remotes/            RemoteEvents / RemoteFunctions
+src/map/                scene instances (.model.json)
+```
+
+### 2. Set up credentials
+
+Create an API key in the [Creator Dashboard](https://create.roblox.com/dashboard/creations)
+with the **`universe-places:write`** scope and Read + Write access to your
+experience, then set:
+
+```bash
+export ROBLOX_API_KEY=...        # Open Cloud key
+export ROBLOX_UNIVERSE_ID=...    # the experience
+export ROBLOX_PLACE_ID=...       # the place to publish to
+```
+
+### 3. Publish
+
+Ask the agent:
+
+```
+add a tycoon loop and publish it
+```
+
+or call the tool directly:
+
+```
+RobloxStatus          # check the setup
+RobloxPublish         # commit, build with Rojo, publish, return the version
+```
+
+The tool returns the new version number and the game link.
+
+### How it works
+
+```
+git repo (Luau source)
+    -> rojo build -o build.rbxl
+    -> POST /universes/v1/{universeId}/places/{placeId}/versions?versionType=Published
+    -> version number
+```
+
+### Constraints worth knowing
+
+- **Binary `.rbxl`, not `.rbxlx`.** Open Cloud currently drops the default
+  server-authoritative character controls when publishing from an `.rbxlx`
+  file. `RobloxPublish` builds binary first and falls back to XML only if the
+  binary build fails.
+- **Publish limits.** Roblox allows roughly 5 *new* public games per day per
+  account; the API returns HTTP 409 when a limit is hit.
+- **10 MiB** maximum place file size.
+- `EditableImage`, `EditableMesh`, `PartOperation`, `SurfaceAppearance` and
+  `BaseWrap` instances do not round-trip through the API — publish those from
+  Studio.
+- Set up server-authoritative movement in source rather than relying on Studio
+  defaults, or players will not be able to move.
+
+---
+
 ## Architecture
 
 ```
@@ -203,7 +336,10 @@ kali/
 ├── systemprompt.py    # system prompt construction
 ├── ui.py              # rich console, streaming renderer, spinners
 ├── slash.py           # slash command router
+├── serve.py           # mobile companion: WebSocket server + remote UI
+├── roblox.py          # Rojo build + Open Cloud publish client
 ├── discord_presence.py# Discord IPC Rich Presence client
+├── mobile/            # the PWA client (HTML/JS/manifest/service worker)
 └── tools/             # the built-in tool implementations
 ```
 
@@ -233,6 +369,8 @@ python tests/smoke_cli.py               # end-to-end CLI
 python tests/smoke_mcp.py Roblox_Studio # MCP client
 python tests/smoke_websearch.py         # search backends
 python tests/smoke_alwaysallow_websearch.py
+python tests/smoke_serve.py             # mobile companion server
+python tests/smoke_roblox.py            # Rojo build + publish client
 ```
 
 Live tests require a valid `NVIDIA_API_KEY`.
