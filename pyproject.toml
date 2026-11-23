@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kali-code"
+version = "1.0.0"
+description = "Kali Code - a Claude Code-style agentic coding CLI powered by NVIDIA NIM"
+requires-python = ">=3.11"
+dependencies = [
+    "rich>=13.0",
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+pdf = ["pypdf>=4.0"]
+assets = ["pillow>=10.0"]
+
+[project.scripts]
+kali = "kali.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["kali*"]
+
+[tool.setuptools.package-data]
+kali = ["skills/**/*", "systemprompt/*.md", "assets/*.png"]

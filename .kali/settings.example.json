@@ -1,0 +1,30 @@
+{
+  "model": "stepfun-ai/step-5-preview",
+  "permissionMode": "default",
+  "env": {
+    "NVIDIA_API_KEY": "nvapi-YOUR_KEY_HERE",
+    "NIM_BASE_URL": "https://integrate.api.nvidia.com/v1",
+    "KALI_MAX_TOKENS": "16384",
+    "KALI_REASONING_EFFORT": "low"
+  },
+  "mcpServers": {
+    "Roblox_Studio": {
+      "command": "cmd.exe",
+      "args": ["/c", "C:\\Users\\YOU\\AppData\\Local\\Roblox\\mcp.bat"],
+      "timeout": 120000,
+      "toolsTimeout": 90000
+    }
+  },
+  "discord": {
+    "enabled": true,
+    "clientId": "YOUR_DISCORD_APPLICATION_ID",
+    "appName": "Kali Code",
+    "stateText": "Using Kali Code",
+    "largeImage": "kali",
+    "largeText": "Kali Code",
+    "largeImageUrl": ""
+  },
+  "permissions": {
+    "allow": ["WebSearch", "WebFetch"]
+  }
+}
