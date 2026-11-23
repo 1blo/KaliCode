@@ -5,7 +5,7 @@ from .base import Tool, ToolResult, ToolContext, STR, BOOL, _s
 from ..config import SUBAGENT_MODEL
 
 # NOTE: the spec's `model` enum is ["sonnet", "opus", "haiku", "fable"]
-# (Anthropic alias names). This clone runs on NVIDIA NIM, so the enum is
+# (Anthropic alias names). This clone uses its own enum, so the
 # substituted with the models this build can actually route to.
 AGENT_MODEL_ENUM = [
     "stepfun-ai/step-5-preview",

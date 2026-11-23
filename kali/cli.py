@@ -20,7 +20,7 @@ BANNER_NOTE = "Welcome to Kali Code! Type /help for commands."
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="kali",
-        description="Kali Code - Claude Code-style agentic coding CLI on NVIDIA NIM",
+        description="Kali Code - an accurate copy of the Claude Code agentic coding CLI",
         epilog='Examples: kali "fix the bug"   kali -p "what does this repo do"',
     )
     p.add_argument("prompt", nargs="*", help="optional initial prompt")
@@ -104,7 +104,7 @@ async def _amain(args) -> int:
     ui.agent = agent
 
     if not resolve_api_key().startswith("nvapi-"):
-        ui.on_error("NVIDIA_API_KEY is not set. Get a key from build.nvidia.com and run /login or setx NVIDIA_API_KEY nvapi-...")
+        ui.on_error("No API key is set. Run /login or set the NVIDIA_API_KEY environment variable.")
         return 1
 
     # ---- Discord Rich Presence ("Using Kali Code" + timer + chat title)

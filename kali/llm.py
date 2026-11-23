@@ -1,7 +1,7 @@
-"""NVIDIA NIM chat-completions client with SSE streaming and tool-call accumulation.
+"""Chat-completions client with SSE streaming and tool-call accumulation.
 
-Speaks the OpenAI wire format directly to https://integrate.api.nvidia.com/v1 -
-no translation proxy needed (unlike Claude Code on NIM).
+Speaks the OpenAI wire format directly to the configured endpoint - no
+translation proxy needed.
 """
 from __future__ import annotations
 
@@ -118,7 +118,7 @@ async def stream_chat(
                             last_error = f"HTTP {resp.status_code}: {body[:300]}"
                             await _backoff(attempt)
                             continue
-                        raise LLMError(f"HTTP {resp.status_code} from NVIDIA: {body[:800]}")
+                        raise LLMError(f"HTTP {resp.status_code} from the API: {body[:800]}")
 
                     async for line in resp.aiter_lines():
                         if not line:

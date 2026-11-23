@@ -1,3 +1,3 @@
-"""Kali Code - a Claude Code-style agentic coding CLI powered by NVIDIA NIM."""
+"""Kali Code - an accurate copy of the Claude Code agentic coding CLI."""
 
 __version__ = "1.0.0"

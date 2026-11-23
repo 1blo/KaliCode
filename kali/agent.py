@@ -1,6 +1,6 @@
 """The agent loop - Claude Code's conversation engine.
 
-Messages use the OpenAI wire format (NVIDIA NIM native). The loop:
+Messages use the OpenAI wire format (native). The loop:
   stream -> thinking/text deltas -> tool_calls -> permissions/hooks -> execute
   -> tool results -> repeat until no tool calls, max turns, or interrupt.
 Supports auto-compact, subagents, background shells, plan mode and MCP tools.

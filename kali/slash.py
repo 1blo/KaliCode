@@ -39,7 +39,7 @@ HELP = """[bold magenta]Kali Code[/] commands:
   /doctor          check installation health
   /release-notes   what's new in this version
   /bug             how to report a bug
-  /login /logout   NVIDIA key management
+  /login /logout   API key management
   /exit            quit (also Ctrl+D / Ctrl+C twice)"""
 
 
@@ -301,14 +301,14 @@ class SlashRouter:
 
     def cmd_release_notes(self, arg: str) -> None:
         self.ui.console.print(f"[bold]Kali Code v{__version__}[/]\n"
-                              "  - initial release: Claude Code tool parity on NVIDIA NIM\n"
+                              "  - initial release: full Claude Code tool parity\n"
                               "  - MCP support (stdio + http), skills, hooks, subagents, plan mode")
 
     def cmd_bug(self, arg: str) -> None:
         self.ui.console.print("Report Kali Code bugs at the project folder: KALICODE-BUGS.md")
 
     def cmd_login(self, arg: str) -> None:
-        key = self.ui.console.input("Paste NVIDIA API key (nvapi-...): ").strip()
+        key = self.ui.console.input("Paste API key: ").strip()
         if key.startswith("nvapi-"):
             from .config import USER_DIR
 

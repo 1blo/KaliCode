@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "kali-code"
 version = "1.0.0"
-description = "Kali Code - a Claude Code-style agentic coding CLI powered by NVIDIA NIM"
+description = "Kali Code - an accurate copy of the Claude Code agentic coding CLI"
 requires-python = ">=3.11"
 dependencies = [
     "rich>=13.0",

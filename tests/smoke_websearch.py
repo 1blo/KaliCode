@@ -27,7 +27,7 @@ async def main() -> int:
             print(f"      url:   {r[0]['url'][:100]}")
 
     print("\n=== full tool run ===")
-    res = await t.run({"query": "latest NVIDIA NIM models 2026", "mode": "standard"}, ctx)
+    res = await t.run({"query": "latest open source LLM models 2026", "mode": "standard"}, ctx)
     print("error:", res.error)
     text = res.render()
     print(text[:1200])

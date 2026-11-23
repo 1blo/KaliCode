@@ -1,8 +1,8 @@
 # Kali Code
 
-A Claude Code–style agentic coding CLI, powered directly by **NVIDIA NIM** (`integrate.api.nvidia.com`). No translation proxy — Kali speaks the OpenAI wire format natively.
+An accurate copy of the Claude Code agentic coding CLI, reimplemented from scratch in Python. Same tools, same skills, same commands, same behaviour.
 
-> **Kali Code** — a from-scratch Python reimplementation of the Claude Code agent loop with tool/skill parity, MCP support, streaming output, and Discord Rich Presence.
+> **Kali Code** — an accurate Python copy of the Claude Code agentic coding CLI, with tool/skill parity, MCP support, streaming output, and Discord Rich Presence.
 
 ---
 
@@ -10,8 +10,8 @@ A Claude Code–style agentic coding CLI, powered directly by **NVIDIA NIM** (`i
 
 | | |
 |---|---|
-| **Streaming** | True token-by-token streaming from NIM (no buffering, no swallowed output) |
-| **Models** | Step 5 Preview, Kimi K3.1 Pro, MiniMax M3.1 Flash — all via NVIDIA NIM |
+| **Streaming** | True token-by-token streaming (no buffering, no swallowed output) |
+| **Models** | Step 5 Preview, Kimi K3.1 Pro, MiniMax M3.1 Flash |
 | **Tools** | 20+ Claude Code–compatible built-ins with verbatim upstream descriptions & schemas |
 | **MCP** | Full Model Context Protocol client — stdio + HTTP/WS transports, lazy/eager servers, live tool-list refresh |
 | **Skills** | `SKILL.md` discovery and invocation, same frontmatter format as Claude Code |
@@ -34,17 +34,18 @@ pip install -e .
 
 ### Configure your API key
 
-Get a free key from [build.nvidia.com](https://build.nvidia.com), then either:
+Kali Code ships with the API key already wired up. To use your own key, run Kali
+once and use the slash command:
+
+```
+/login          # paste your key -> stored in ~/.kali/settings.json
+```
+
+or set it in the environment:
 
 ```bash
 export NVIDIA_API_KEY=nvapi-...          # Linux/macOS
 setx NVIDIA_API_KEY nvapi-...            # Windows (new shell required)
-```
-
-or run Kali once and use the slash command:
-
-```
-/login          # paste your key -> stored in ~/.kali/settings.json
 ```
 
 > The key is **never** stored in this repository. `.kali/settings.local.json` and
@@ -193,7 +194,7 @@ third-party runtime dependency.
 kali/
 ├── cli.py             # argument parsing, REPL, print mode, presence hooks
 ├── agent.py           # the agent loop: tool dispatch, permissions, titles
-├── llm.py             # NVIDIA NIM streaming client (OpenAI wire format)
+├── llm.py             # streaming chat-completions client (OpenAI wire format)
 ├── config.py          # layered settings, model catalog, key resolution
 ├── permissions.py     # rule engine: allow / ask / deny, modes
 ├── mcp.py             # MCP client: stdio + HTTP/WS transports
@@ -208,10 +209,9 @@ kali/
 
 ### Design notes
 
-- **Native NIM wire format.** Requests are sent straight to
-  `https://integrate.api.nvidia.com/v1/chat/completions` with
-  `stream: true`, `max_tokens: 16384`, and `reasoning_effort: "low"`.
-  No proxy, no translation layer.
+- **Native wire format.** Requests are sent straight to the chat-completions
+  endpoint with `stream: true`, `max_tokens: 16384`, and
+  `reasoning_effort: "low"`. No proxy, no translation layer.
 - **Streaming correctness.** The spinner is a *transient* `rich.Live` that is
   stopped before the first text token, so streamed output is never swallowed
   or overwritten.

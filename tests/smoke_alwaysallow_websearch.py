@@ -58,7 +58,7 @@ def test_settings_not_polluted():
         after = json.loads(path.read_text(encoding="utf-8"))
         print("   permissionMode:", after.get("permissionMode"))
         assert after.get("permissionMode") == "bypassPermissions"
-        # the NVIDIA key and mcpServers must survive untouched
+        # the API key and mcpServers must survive untouched
         assert after.get("env", {}).get("NVIDIA_API_KEY") == before.get("env", {}).get("NVIDIA_API_KEY")
         assert "Roblox_Studio" in (after.get("mcpServers") or {}), "mcpServers lost!"
         assert after.get("discord", {}).get("clientId") == before.get("discord", {}).get("clientId")

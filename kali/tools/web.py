@@ -1,4 +1,4 @@
-"""WebFetch and WebSearch - Claude Code's web tools with an NVIDIA-independent backend.
+"""WebFetch and WebSearch - Claude Code's web tools with an independent backend.
 
 Search backends (tried in order, first one with results wins):
   1. Bing HTML        - https://www.bing.com/search       (primary, no API key)
@@ -255,7 +255,7 @@ IMPORTANT - Use the correct year in search queries:
         """Try each backend in order until one returns *relevant* results.
 
         Some engines occasionally serve an unrelated cached SERP (Bing has
-        been observed returning Switch-hacking results for an NVIDIA query,
+        been observed returning Switch-hacking results for a hardware query,
         and dictionary definitions for a query starting with "official").
         A result set whose titles share no meaningful token with the query is
         treated as a miss and the next backend is tried.

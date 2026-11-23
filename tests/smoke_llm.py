@@ -1,4 +1,4 @@
-"""Live test of the NVIDIA NIM streaming client (kali/llm.py) on all 3 models."""
+"""Live test of the streaming client (kali/llm.py) on all 3 models."""
 import asyncio
 import os
 import sys

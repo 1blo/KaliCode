@@ -44,22 +44,22 @@ def find_project_root(start: Path | None = None) -> Path:
 
 
 # --------------------------------------------------------------------------- #
-# Model catalog (NVIDIA NIM) - mirrors the user's Claude Code modelPicker
+# Model catalog - mirrors the user's Claude Code modelPicker
 # --------------------------------------------------------------------------- #
 MODELS: dict[str, dict] = {
     "stepfun-ai/step-5-preview": {
         "label": "Step 5 Preview",
-        "description": "StepFun Step 5 via NVIDIA NIM (default)",
+        "description": "StepFun Step 5 (default)",
         "context": 131072,
     },
     "moonshotai/kimi-k3.1-pro": {
         "label": "Kimi K3.1 Pro",
-        "description": "Moonshot Kimi K3.1 Pro via NVIDIA NIM (1M context)",
+        "description": "Moonshot Kimi K3.1 Pro (1M context)",
         "context": 1048576,
     },
     "minimaxai/minimax-m3.1-flash": {
         "label": "MiniMax M3.1 Flash",
-        "description": "MiniMax M3.1 Flash via NVIDIA NIM (fast / subagents)",
+        "description": "MiniMax M3.1 Flash (fast / subagents)",
         "context": 131072,
     },
 }
@@ -68,7 +68,7 @@ SUBAGENT_MODEL = os.environ.get("KALI_SUBAGENT_MODEL", "minimaxai/minimax-m3.1-f
 
 
 def resolve_api_key() -> str:
-    """Resolve the NVIDIA API key.
+    """Resolve the API key.
 
     Order: environment -> ~/.kali/settings.json env block -> empty.
     No key is ever embedded in the source; an empty result makes the CLI
