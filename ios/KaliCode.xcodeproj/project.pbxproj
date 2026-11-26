@@ -1,0 +1,292 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		E5257383EB2828ECB9720FEB /* KaliApp.swift in Frameworks */ = {isa = PBXBuildFile; fileRef = A622EBB3EAFDB5F94E22AF30 /* KaliApp.swift */; };
+		71B970900827096BD3C3ABA6 /* Protocol.swift in Frameworks */ = {isa = PBXBuildFile; fileRef = FAF3E635EE2F9C50ECDC12BE /* Protocol.swift */; };
+		46C976F98EFA97CF4F491CA1 /* KaliClient.swift in Frameworks */ = {isa = PBXBuildFile; fileRef = 4876FFEAF60C76243F178EC9 /* KaliClient.swift */; };
+		1438CDDA41F50831EEE1E6C1 /* KaliStore.swift in Frameworks */ = {isa = PBXBuildFile; fileRef = 9385C71492DCF45E174A8284 /* KaliStore.swift */; };
+		00EE861A1FC8093B1B5797E1 /* Theme.swift in Frameworks */ = {isa = PBXBuildFile; fileRef = B4607FAF73A2859EBDDFBC1E /* Theme.swift */; };
+		E4B1ADC7980364F99018E54B /* Assets.xcassets in Frameworks */ = {isa = PBXBuildFile; fileRef = E0E27618A2D2A8FEBDD49F35 /* Assets.xcassets */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		A622EBB3EAFDB5F94E22AF30 /* KaliApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KaliApp.swift; sourceTree = "<group>"; };
+		FAF3E635EE2F9C50ECDC12BE /* Protocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Protocol.swift; sourceTree = "<group>"; };
+		4876FFEAF60C76243F178EC9 /* KaliClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KaliClient.swift; sourceTree = "<group>"; };
+		9385C71492DCF45E174A8284 /* KaliStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KaliStore.swift; sourceTree = "<group>"; };
+		B4607FAF73A2859EBDDFBC1E /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		D9C6393D6C2EE0244C1E3BAF /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		DC9D0639971EFD9DEFEADAED /* KaliCode.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = KaliCode.entitlements; sourceTree = "<group>"; };
+		E0E27618A2D2A8FEBDD49F35 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		D2D55194C4A1D4820681EF70 /* KaliCode.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = KaliCode.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		CF5BDB0BEAFE176F9629192A /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E5257383EB2828ECB9720FEB /* KaliApp.swift in Frameworks */,
+				71B970900827096BD3C3ABA6 /* Protocol.swift in Frameworks */,
+				46C976F98EFA97CF4F491CA1 /* KaliClient.swift in Frameworks */,
+				1438CDDA41F50831EEE1E6C1 /* KaliStore.swift in Frameworks */,
+				00EE861A1FC8093B1B5797E1 /* Theme.swift in Frameworks */,
+				E4B1ADC7980364F99018E54B /* Assets.xcassets in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		DF891E785808226D241F246E = {
+			isa = PBXGroup;
+			children = (
+				A9012353AFD6A66EB75D4BE2 /* Sources */,
+				A024F06580C79B7582C3806A /* Resources */,
+				5151B46607EBC8890D8DFCC2 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A9012353AFD6A66EB75D4BE2 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				F7A3AB45B2FA93E5D700CE81 /* KaliCode */,
+				A03F1721385E1EE58C3F4D6B /* KaliCodeKit */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		F7A3AB45B2FA93E5D700CE81 /* KaliCode */ = {
+			isa = PBXGroup;
+			children = (
+				A622EBB3EAFDB5F94E22AF30 /* KaliApp.swift */,
+			);
+			path = KaliCode;
+			sourceTree = "<group>";
+		};
+		A03F1721385E1EE58C3F4D6B /* KaliCodeKit */ = {
+			isa = PBXGroup;
+			children = (
+				FAF3E635EE2F9C50ECDC12BE /* Protocol.swift */,
+				4876FFEAF60C76243F178EC9 /* KaliClient.swift */,
+				9385C71492DCF45E174A8284 /* KaliStore.swift */,
+				B4607FAF73A2859EBDDFBC1E /* Theme.swift */,
+			);
+			path = KaliCodeKit;
+			sourceTree = "<group>";
+		};
+		A024F06580C79B7582C3806A /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				D9C6393D6C2EE0244C1E3BAF /* Info.plist */,
+				DC9D0639971EFD9DEFEADAED /* KaliCode.entitlements */,
+				E0E27618A2D2A8FEBDD49F35 /* Assets.xcassets */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		5151B46607EBC8890D8DFCC2 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				D2D55194C4A1D4820681EF70 /* KaliCode.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		29C7B681C8D62CBAC94D51C0 /* KaliCode */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7ADE71700E9404B10E13B577 /* Build configuration list */;
+			buildPhases = (
+				1CDF2F71A52B082132B04DFF /* Sources */,
+				CF5BDB0BEAFE176F9629192A /* Frameworks */,
+				C02F1309AF4906C92F1EAD44 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = KaliCode;
+			productName = KaliCode;
+			productReference = D2D55194C4A1D4820681EF70 /* KaliCode.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		98F54143AB4E86B28C3AFEE0 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					29C7B681C8D62CBAC94D51C0 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+				};
+			};
+			buildConfigurationList = 12D04D787E90C9B967248BFD /* Build configuration list */;
+			compatibilityVersion = "Xcode 15.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = DF891E785808226D241F246E;
+			productRefGroup = 5151B46607EBC8890D8DFCC2 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				29C7B681C8D62CBAC94D51C0 /* KaliCode */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		C02F1309AF4906C92F1EAD44 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E4B1ADC7980364F99018E54B /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		1CDF2F71A52B082132B04DFF /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E5257383EB2828ECB9720FEB /* KaliApp.swift in Sources */,
+				71B970900827096BD3C3ABA6 /* Protocol.swift in Sources */,
+				46C976F98EFA97CF4F491CA1 /* KaliClient.swift in Sources */,
+				1438CDDA41F50831EEE1E6C1 /* KaliStore.swift in Sources */,
+				00EE861A1FC8093B1B5797E1 /* Theme.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		C761B7D49C3C32C5F60E8010 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.9;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				ONLY_ACTIVE_ARCH = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		ACCCD85F61979F8ECCA377BC /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.9;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		58B923851A6DC2AF2479E88C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Resources/KaliCode.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Resources/Info.plist;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.2.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kalicode.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		B120543165201CD01FE38942 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Resources/KaliCode.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Resources/Info.plist;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.2.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kalicode.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		12D04D787E90C9B967248BFD /* Build configuration list for PBXProject */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C761B7D49C3C32C5F60E8010 /* Debug */,
+				ACCCD85F61979F8ECCA377BC /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		7ADE71700E9404B10E13B577 /* Build configuration list for PBXNativeTarget */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				58B923851A6DC2AF2479E88C /* Debug */,
+				B120543165201CD01FE38942 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 98F54143AB4E86B28C3AFEE0 /* Project object */;
+}

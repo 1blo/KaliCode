@@ -164,8 +164,12 @@
         break;
       }
       case "session_meta": {
-        const meta = msg.session || {};
+        // Newer servers send the session object in "meta"; older ones
+        // put it in "session". Accept either.
+        const meta = msg.meta || msg.session || {};
         sessions = sessions.map((s) => (s.id === meta.id ? meta : s));
+        if (meta.model) model = meta.model;
+        if (meta.permissionMode) permMode = meta.permissionMode;
         renderSessions();
         renderHeader();
         break;

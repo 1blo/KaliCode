@@ -161,18 +161,127 @@ The keystore and `android/keystore.properties` are git-ignored. Only
 a JDK 17 or newer.
 </details>
 
-| Feature | Desktop | Android |
-|---|:--:|:--:|
-| Chat and streaming output | ✓ | ✓ |
-| Tool cards | ✓ | ✓ |
-| Approve / deny / always-allow | ✓ | ✓ |
-| Permission modes | all five | Manual, Accept edits, Plan, Auto |
-| Session list | ✓ | ✓ |
-| Model picker | ✓ | ✓ |
-| Diff view | ✓ | — |
-| File browser | ✓ | — |
-| Side chat | ✓ | — |
-| Runs the agent | ✓ | never |
+| Feature | Desktop | Android | iOS |
+|---|:--:|:--:|:--:|
+| Chat and streaming output | ✓ | ✓ | ✓ |
+| Tool cards | ✓ | ✓ | ✓ |
+| Approve / deny / always-allow | ✓ | ✓ | ✓ |
+| Permission modes | all five | Manual, Accept edits, Plan, Auto | Manual, Accept edits, Plan, Auto |
+| Session list | ✓ | ✓ | ✓ |
+| Model picker | ✓ | ✓ | ✓ |
+| Question cards | ✓ | ✓ | ✓ |
+| Plan approval | ✓ | ✓ | ✓ |
+| Context usage | ✓ | ✓ | ✓ |
+| Interrupt / stop | ✓ | ✓ | ✓ |
+| Auto-reconnect | ✓ | ✓ | ✓ |
+| Diff view | ✓ | — | — |
+| File browser | ✓ | — | — |
+| Side chat | ✓ | — | — |
+| Runs the agent | ✓ | never | never |
+
+---
+
+## iOS app
+
+Kali Code ships **two** iOS clients, and you can use either one.
+
+### 1. The native SwiftUI app
+
+The full native app lives in [`ios/`](ios/). It is a SwiftUI + SwiftPM
+project with no third-party dependencies — the WebSocket client is
+`URLSessionWebSocketTask` and the JSON layer is Foundation's `Codable`.
+
+It has the same feature set as the Android app: streaming chat, tool
+cards, permission cards (allow / always / deny), question cards, plan
+approval, a model picker, a permission-mode picker, a session list, the
+context percentage, interrupt/stop and automatic reconnect with backoff.
+
+**You need a Mac to build it.** Apple does not allow an `.ipa` to be
+compiled or signed on Windows, so the repository ships the project
+source and you produce the binary.
+
+```bash
+git clone https://github.com/1blo/KaliCode
+cd KaliCode/ios
+
+# 1. Open the project
+open KaliCode.xcodeproj
+
+# 2. In Xcode, select the KaliCode target > Signing & Capabilities,
+#    pick your team and set the bundle id if `com.kalicode.app` is taken.
+
+# 3. Build and run on a device or a simulator
+```
+
+Or from the command line:
+
+```bash
+cd ios
+xcodebuild -project KaliCode.xcodeproj -scheme KaliCode \
+  -configuration Release \
+  -destination 'generic/platform=iOS' \
+  -allowProvisioningUpdates \
+  build
+
+# The .app lands in:
+# ~/Library/Developer/Xcode/DerivedData/KaliCode-*/Build/Products/Release-iphoneos/KaliCode.app
+```
+
+To ship it to TestFlight or the App Store, archive it (`Product > Archive`)
+and sign it with your Apple Developer team.
+
+<details>
+<summary>Project layout</summary>
+
+```
+ios/
+  Package.swift                       SwiftPM manifest (iOS 16+)
+  KaliCode.xcodeproj/                 the Xcode project + shared scheme
+  Sources/
+    KaliCodeKit/
+      Protocol.swift                  the wire protocol (Codable)
+      KaliClient.swift                the WebSocket transport
+      KaliStore.swift                 the state machine
+      Theme.swift                     the shared palette
+    KaliCode/
+      KaliApp.swift                   the SwiftUI views
+  Resources/
+    Info.plist                        ATS exception, scene manifest
+    KaliCode.entitlements             push notifications
+    Assets.xcassets/                  the app icon + launch colour
+  Tests/
+    KaliCodeKitTests/                 protocol tests
+```
+
+The Xcode project is generated, not hand-written:
+
+```bash
+python tools/build_ios_project.py     # regenerate ios/KaliCode.xcodeproj
+python tools/make_ios_icons.py        # regenerate the app icon
+```
+
+</details>
+
+### 2. The installable PWA
+
+If you do not want to build anything, open the server URL in Safari and
+tap **Share → Add to Home Screen**. It installs as a standalone app with
+no browser chrome.
+
+The PWA is iOS-aware:
+
+- the layout follows `env(safe-area-inset-*)` on both the top and the
+  bottom, so it clears the notch and the home indicator
+- the composer follows `visualViewport`, so the on-screen keyboard never
+  covers it
+- iPad gets a wider, centred layout
+- Web Push works on iOS 16.4+ — but only once the app is installed to
+  the Home Screen, which is why the app shows an "Add to Home Screen"
+  banner
+- the app reconnects automatically when iOS suspends it in the background
+
+Push notifications need the PWA to be installed; iOS Safari does not
+grant notification permission to a normal tab.
 
 ---
 
@@ -489,14 +598,24 @@ android/                # the native Android client (Kotlin + Compose)
 │   ├── net/            # the WebSocket client and the wire protocol
 │   └── ui/             # the Compose screens
 └── tools/              # the icon generator, the keystore generator
+
+ios/                    # the native iOS client (SwiftUI + SwiftPM)
+├── Package.swift
+├── KaliCode.xcodeproj/ # the generated Xcode project + shared scheme
+├── Sources/
+│   ├── KaliCodeKit/    # the protocol, the client, the store, the theme
+│   └── KaliCode/       # the SwiftUI views
+├── Resources/          # Info.plist, entitlements, the asset catalog
+└── Tests/              # the protocol tests
 ```
 
-### One server, three clients
+### One server, four clients
 
 ```
 ┌──────────────┐   HTTP + WebSocket   ┌─────────────────────────┐
 │ Desktop GUI  │◄────────────────────►│                         │
 │ Android APK  │◄────────────────────►│  kali.serve (this)      │
+│ iOS app      │◄────────────────────►│                         │
 │ PWA client   │◄────────────────────►│                         │
 └──────────────┘                       │  SessionRegistry        │
                                        │  └─ one Agent each     │
@@ -537,10 +656,22 @@ python tests/smoke_websearch.py         # search backends
 python tests/smoke_alwaysallow_websearch.py
 python tests/smoke_serve.py             # the session server
 python tests/smoke_desktop.py           # the desktop interface + REST API
+python tests/smoke_desktop_ui.py        # the desktop DOM
+python tests/smoke_gui.py               # the WebView2 host
+python tests/smoke_ios.py               # the native iOS project + iOS routing
+python tests/smoke_ios_pwa.py           # the iOS PWA behaviour
+python tests/smoke_ios_static.py        # the Swift sources (no toolchain needed)
 python tests/smoke_roblox.py            # Rojo build + publish client
 ```
 
 Live tests require a valid `NVIDIA_API_KEY`.
+
+The Swift test suite runs on a Mac:
+
+```bash
+cd ios
+swift test          # the protocol tests
+```
 
 ---
 

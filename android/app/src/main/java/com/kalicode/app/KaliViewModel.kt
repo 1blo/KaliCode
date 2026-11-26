@@ -163,7 +163,6 @@ class KaliViewModel(app: Application) : AndroidViewModel(app) {
                     )
                 }
             }
-
             "thinking" -> {
                 if (msg.text.isNotBlank()) appendText(ChatItem.Thinking(msg.text))
             }

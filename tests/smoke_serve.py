@@ -159,8 +159,11 @@ async def main() -> int:
         await ws.send(json.dumps({"type": "set_model", "model": model}))
         msg = await recv_until(ws, {"session_meta", "error"})
         check("set_model -> session_meta", msg.get("type") == "session_meta", str(msg))
-        check("model applied",
-              (msg.get("session") or {}).get("model") == model, str(msg))
+        # The session object travels in "meta"; "session" holds the id.
+        meta = msg.get("meta") or {}
+        check("session_meta carries the session id",
+              msg.get("session") == sid1, str(msg))
+        check("model applied", meta.get("model") == model, str(msg))
 
         await ws.send(json.dumps({"type": "set_model", "model": "not-a-model"}))
         msg = await recv_until(ws, {"session_meta", "error"})
@@ -171,7 +174,7 @@ async def main() -> int:
         msg = await recv_until(ws, {"session_meta", "error"})
         check("set_mode -> session_meta", msg.get("type") == "session_meta", str(msg))
         check("mode applied",
-              (msg.get("session") or {}).get("permissionMode") == "plan", str(msg))
+              (msg.get("meta") or {}).get("permissionMode") == "plan", str(msg))
 
         await ws.send(json.dumps({"type": "set_mode", "mode": "nonsense"}))
         msg = await recv_until(ws, {"session_meta", "error"})
@@ -182,7 +185,7 @@ async def main() -> int:
         msg = await recv_until(ws, {"session_meta", "error"})
         check("rename -> session_meta", msg.get("type") == "session_meta", str(msg))
         check("title applied",
-              (msg.get("session") or {}).get("title") == "Renamed", str(msg))
+              (msg.get("meta") or {}).get("title") == "Renamed", str(msg))
 
         # sessions listing over ws
         await ws.send(json.dumps({"type": "sessions"}))

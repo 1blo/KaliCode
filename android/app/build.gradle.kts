@@ -14,8 +14,8 @@ android {
         applicationId = "com.kalicode.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.1.0"
+        versionCode = 2
+        versionName = "1.2.0"
 
         // The server URL is configurable in the app; this is only the default.
         buildConfigField("String", "DEFAULT_SERVER_URL", "\"https://kali-code.onrender.com\"")

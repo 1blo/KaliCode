@@ -108,6 +108,17 @@ android/.idea/
 *.apk
 !android/app/src/main/res/**/*.apk
 
+# ---- iOS --------------------------------------------------------------------
+# SwiftPM / Xcode build output and the per-machine user data.
+ios/.build/
+ios/build/
+ios/.swiftpm/
+ios/*.xcworkspace/xcuserdata/
+ios/*.xcodeproj/xcuserdata/
+ios/DerivedData/
+*.xcuserstate
+*.xccheckout
+
 # ---- Roblox / Rojo -----------------------------------------------------------
 # Generated place files - always rebuild them with `rojo build`.
 build.rbxl

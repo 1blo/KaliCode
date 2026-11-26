@@ -1,6 +1,14 @@
 /* Kali Code PWA service worker - offline shell + background sync. */
-const CACHE = "kali-code-v2";
-const SHELL = ["/", "/mobile/manifest.json", "/mobile/icon.svg", "/mobile/app.js"];
+const CACHE = "kali-code-v3";
+const SHELL = [
+  "/",
+  "/mobile/manifest.json",
+  "/mobile/icon.svg",
+  "/mobile/icon-192.png",
+  "/mobile/icon-512.png",
+  "/mobile/app.js",
+  "/mobile/sw.js",
+];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(

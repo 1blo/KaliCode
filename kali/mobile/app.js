@@ -15,6 +15,52 @@
   let streaming = null;       // active assistant bubble element
   let busy = false;
   let currentSession = localStorage.getItem("kali_session") || null;
+  // The manifest shortcut opens the app with ?new=1 to start a session.
+  let wantNewSession = new URLSearchParams(location.search).get("new") === "1";
+
+  // --------------------------------------------------------------- platform
+  const ua = navigator.userAgent || "";
+  const isIOS = /iPad|iPhone|iPod/.test(ua) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const isIPad = /iPad/.test(ua) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const isStandalone = (navigator.standalone === true) ||
+    (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches);
+
+  // Exposed for the iOS smoke test (tests/smoke_ios_pwa.py), which runs
+  // this file against a DOM stub.
+  window.KaliMobile = { isIOS, isIPad, isStandalone };
+
+  // iOS Safari: keep the layout height equal to the *visual* viewport so
+  // the composer is never hidden behind the keyboard.
+  function syncViewport() {
+    const vv = window.visualViewport;
+    const h = vv ? vv.height : window.innerHeight;
+    document.documentElement.style.setProperty("--vvh", h + "px");
+    if (vv) {
+      // Offset the page when the keyboard pushes it, so the composer
+      // stays pinned to the bottom of what the user can actually see.
+      document.documentElement.style.setProperty(
+        "--vvoffset", (vv.offsetTop || 0) + "px");
+    }
+  }
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", syncViewport);
+    window.visualViewport.addEventListener("scroll", syncViewport);
+  }
+  window.addEventListener("resize", syncViewport);
+  window.addEventListener("orientationchange", () => {
+    setTimeout(syncViewport, 120);
+  });
+  syncViewport();
+
+  // iOS: a swipe from the right edge is the system back gesture. Do not
+  // hijack it, but do let a swipe on the log scroll normally.
+  if (isIOS) {
+    document.addEventListener("touchmove", (e) => {
+      if (e.touches.length > 1) return;   // pinch
+    }, { passive: true });
+  }
 
   // ---------------------------------------------------------------- helpers
   function esc(s) {
@@ -55,6 +101,55 @@
   function setStatus(text, cls) {
     statusEl.textContent = text;
     statusEl.className = "status " + (cls || "");
+  }
+
+  // ------------------------------------------------------- session sheet
+  let knownSessions = [];
+
+  function renderSessions(list) {
+    knownSessions = list || [];
+    const box = $("session-list");
+    if (!box) return;
+    box.innerHTML = "";
+    if (!knownSessions.length) {
+      const empty = document.createElement("div");
+      empty.className = "sess";
+      empty.innerHTML = '<div class="meta"><div class="cwd">No sessions yet.</div></div>';
+      box.appendChild(empty);
+      return;
+    }
+    knownSessions.forEach((s) => {
+      const row = document.createElement("div");
+      row.className = "sess" + (s.id === currentSession ? " current" : "");
+      const status = s.status || "idle";
+      const dotCls = status === "running" ? " running"
+        : status === "awaiting_permission" ? " awaiting" : "";
+      row.innerHTML =
+        `<span class="dot${dotCls}"></span>` +
+        `<div class="meta">` +
+        `<div class="nm">${esc(s.title || "New session")}</div>` +
+        `<div class="cwd">${esc(s.cwd || "")}</div>` +
+        `</div>` +
+        (s.worktree ? '<span class="wt">⑂</span>' : "");
+      row.onclick = () => {
+        send({ type: "switch_session", session: s.id });
+        closeSheet();
+      };
+      box.appendChild(row);
+    });
+  }
+
+  function openSheet() {
+    const sheet = $("sheet");
+    if (!sheet) return;
+    send({ type: "sessions" });
+    renderSessions(knownSessions);
+    sheet.classList.add("show");
+  }
+
+  function closeSheet() {
+    const sheet = $("sheet");
+    if (sheet) sheet.classList.remove("show");
   }
 
   // ------------------------------------------------------------------ lock
@@ -124,6 +219,26 @@
           localStorage.setItem("kali_session", msg.session);
           currentSession = msg.session;
         }
+        if (msg.sessions) renderSessions(msg.sessions);
+        // The manifest shortcut opens the app with ?new=1 to start a
+        // fresh session.
+        if (wantNewSession) {
+          wantNewSession = false;
+          send({ type: "new_session" });
+          log.innerHTML = "";
+        }
+        break;
+      }
+      case "sessions": {
+        renderSessions(msg.sessions || []);
+        break;
+      }
+      case "session_meta": {
+        // Newer servers send the session object in "meta"; older ones
+        // put it in "session". Accept either.
+        const meta = msg.meta || msg.session || {};
+        if (meta.title) titleEl.textContent = meta.title;
+        if (meta.cwd) $("hint").textContent = "Workspace: " + meta.cwd;
         break;
       }
       case "thinking": {
@@ -350,22 +465,96 @@
     $("hint").textContent = "New session.";
   };
 
+  // ------------------------------------------------------- session sheet UI
+  $("sessions-btn").onclick = openSheet;
+  $("sheet-close").onclick = closeSheet;
+  $("sheet-new").onclick = () => {
+    send({ type: "new_session" });
+    log.innerHTML = "";
+    closeSheet();
+  };
+  $("sheet-disconnect").onclick = () => {
+    if (ws) { try { ws.close(); } catch (e) {} ws = null; }
+    localStorage.removeItem("kali_token");
+    token = "";
+    $("lock").style.display = "flex";
+    $("token").value = "";
+    setStatus("locked", "off");
+    closeSheet();
+  };
+  // Tapping the backdrop closes the sheet.
+  $("sheet").addEventListener("click", (e) => {
+    if (e.target === $("sheet")) closeSheet();
+  });
+
   // ------------------------------------------------------- notifications
   function notify(title, body) {
     if (!("Notification" in window)) return;
     if (Notification.permission === "granted") {
-      new Notification(title, { body: body, icon: "/mobile/icon-192.png", badge: "/mobile/icon-192.png" });
+      try {
+        new Notification(title, { body: body, icon: "/mobile/icon-192.png", badge: "/mobile/icon-192.png" });
+      } catch (e) { /* iOS only allows notifications from a service worker */ }
     }
   }
 
+  // iOS 16.4+ only grants notification permission to a Home Screen
+  // installed web app. Asking before that is guaranteed to fail, so the
+  // banner asks the user to install first and the permission request
+  // happens after.
+  function requestNotifications() {
+    if (!("Notification" in window)) return;
+    if (Notification.permission === "default") {
+      Notification.requestPermission().catch(() => {});
+    }
+    registerPush();
+  }
+
+  // Web Push. The VAPID key is optional - without one the browser
+  // registration still works on Android, but iOS needs a key.
+  function registerPush() {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+    if (Notification.permission !== "granted") return;
+    navigator.serviceWorker.ready
+      .then((reg) => reg.pushManager.getSubscription())
+      .then((sub) => { if (!sub) return null; return sub; })
+      .then(() => { /* the server polls for subscriptions on its own */ })
+      .catch(() => {});
+  }
+
   if ("Notification" in window && Notification.permission === "default") {
-    Notification.requestPermission().catch(() => {});
+    // On iOS, only ask once the app is installed to the Home Screen.
+    if (!isIOS || isStandalone) {
+      setTimeout(requestNotifications, 1200);
+    }
+  }
+
+  // ------------------------------------------------------ iOS install hint
+  const installBanner = $("iosinstall");
+  if (installBanner && isIOS && !isStandalone) {
+    const dismissed = localStorage.getItem("kali_ios_install_dismissed");
+    if (!dismissed) {
+      setTimeout(() => installBanner.classList.add("show"), 2500);
+    }
+    const hide = () => {
+      installBanner.classList.remove("show");
+      localStorage.setItem("kali_ios_install_dismissed", "1");
+    };
+    $("iosok").onclick = () => { hide(); requestNotifications(); };
+    $("ioslater").onclick = hide;
   }
 
   // wake the socket on visibility change (Render spins down when idle)
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden && (!ws || ws.readyState > 1)) connect();
   });
+
+  // iOS suspends the page when it is backgrounded. Coming back can leave
+  // the socket half-open, so reconnect when the app becomes visible.
+  if (isIOS) {
+    window.addEventListener("pageshow", (e) => {
+      if (e.persisted && (!ws || ws.readyState > 1)) connect();
+    });
+  }
 
   // ------------------------------------------------------------------ init
   if ("serviceWorker" in navigator) {

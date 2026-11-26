@@ -679,17 +679,23 @@ class KaliServer:
                                  "sessions": [i.to_dict() for i in self.registry.list()]})
             elif mtype == "set_model":
                 if self.registry.set_model(sess.info.id, str(msg.get("model", ""))):
-                    conn.emit({"type": "session_meta", "session": sess.info.to_dict()})
+                    conn.emit({"type": "session_meta",
+                               "session": sess.info.id,
+                               "meta": sess.info.to_dict()})
                 else:
                     conn.emit({"type": "error", "message": "unknown model"})
             elif mtype == "set_mode":
                 if self.registry.set_permission_mode(sess.info.id, str(msg.get("mode", ""))):
-                    conn.emit({"type": "session_meta", "session": sess.info.to_dict()})
+                    conn.emit({"type": "session_meta",
+                               "session": sess.info.id,
+                               "meta": sess.info.to_dict()})
                 else:
                     conn.emit({"type": "error", "message": "unknown permission mode"})
             elif mtype == "rename":
                 if self.registry.rename(sess.info.id, str(msg.get("title", ""))):
-                    conn.emit({"type": "session_meta", "session": sess.info.to_dict()})
+                    conn.emit({"type": "session_meta",
+                               "session": sess.info.id,
+                               "meta": sess.info.to_dict()})
             elif mtype == "sessions":
                 await conn.send({"type": "sessions",
                                  "sessions": [i.to_dict() for i in self.registry.list()]})
