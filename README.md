@@ -655,6 +655,7 @@ python tests/smoke_mcp.py Roblox_Studio # MCP client
 python tests/smoke_websearch.py         # search backends
 python tests/smoke_alwaysallow_websearch.py
 python tests/smoke_serve.py             # the session server
+python tests/smoke_serve_cli.py         # the server entry points (as a subprocess)
 python tests/smoke_desktop.py           # the desktop interface + REST API
 python tests/smoke_desktop_ui.py        # the desktop DOM
 python tests/smoke_gui.py               # the WebView2 host

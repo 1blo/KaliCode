@@ -101,11 +101,13 @@ async def _amain(args) -> int:
 
     # Mobile companion server: a different entry point, not a REPL mode.
     if args.serve:
-        from .serve import serve
+        from .serve import serve_async
 
-        serve(host=args.serve_host, port=args.serve_port,
-              token=args.serve_token, cwd=os.getcwd(),
-              model=args.model, permission_mode=args.permission_mode)
+        # The CLI already runs inside an event loop, so the server has
+        # to be awaited rather than started with uvicorn.run().
+        await serve_async(host=args.serve_host, port=args.serve_port,
+                          token=args.serve_token, cwd=os.getcwd(),
+                          model=args.model, permission_mode=args.permission_mode)
         return 0
 
     mode = args.permission_mode or settings.get("permissionMode", "default")

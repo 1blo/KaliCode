@@ -836,7 +836,12 @@ def build_app(token: str | None = None, cwd: str | None = None,
 def serve(host: str = "0.0.0.0", port: int = 8000, token: str | None = None,
           cwd: str | None = None, model: str | None = None,
           permission_mode: str | None = None) -> None:
-    """Run the Kali Code server (blocking)."""
+    """Run the Kali Code server (blocking).
+
+    This may be called from inside a running event loop (the CLI runs
+    it from an async entry point), so it never calls `asyncio.run`
+    itself - `uvicorn.run` is only safe outside a loop.
+    """
     import uvicorn
 
     app, server = build_app(token=token, cwd=cwd, model=model,
@@ -845,7 +850,35 @@ def serve(host: str = "0.0.0.0", port: int = 8000, token: str | None = None,
     print(f"Workspace: {server.cwd}")
     print(f"Access token: {server.token}")
     print("Open the URL in a browser, or scan the QR code in the terminal.")
-    uvicorn.run(app, host=host, port=port, log_level="info")
+
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        # No loop is running: uvicorn can start its own.
+        uvicorn.run(app, host=host, port=port, log_level="info")
+        return
+
+    # A loop is already running, so the server has to be driven by it.
+    config = uvicorn.Config(app, host=host, port=port, log_level="info")
+    uvicorn.Server(config).run()
+
+
+async def serve_async(host: str = "0.0.0.0", port: int = 8000,
+                      token: str | None = None, cwd: str | None = None,
+                      model: str | None = None,
+                      permission_mode: str | None = None) -> None:
+    """Run the server from inside an event loop."""
+    import uvicorn
+
+    app, server = build_app(token=token, cwd=cwd, model=model,
+                             permission_mode=permission_mode)
+    print(f"Kali Code server listening on http://{host}:{port}")
+    print(f"Workspace: {server.cwd}")
+    print(f"Access token: {server.token}")
+    print("Open the URL in a browser, or scan the QR code in the terminal.")
+
+    config = uvicorn.Config(app, host=host, port=port, log_level="info")
+    await uvicorn.Server(config).serve()
 
 
 if __name__ == "__main__":
