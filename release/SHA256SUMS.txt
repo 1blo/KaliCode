@@ -1,3 +1,0 @@
-2ac1beb031b319bb08d6ff4f614fd69a13500d1fcedc58d5ffc98f07e41a4086  KaliCode-1.1.0-android.apk
-dcecf702fecf9583f76c6525aedbc9b16c00cfcc332c8038452df2437691a4d5  KaliCode-1.1.0-win64.zip
-26c0e35b8e48221ddc02b8d79bdbaa28dfc033ea3c107628169aa9d7efb0631f  KaliCode.exe

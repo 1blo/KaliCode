@@ -90,6 +90,11 @@ scratch/
 # app - it has to be in the repository so a clone can build an .exe.
 !kali/assets/WebView2Loader.dll
 
+# ---- Release packaging ------------------------------------------------------
+# The packaged release lives outside the repository; the assets are
+# uploaded to the GitHub release instead.
+release/
+
 # ---- Android -----------------------------------------------------------------
 # The release keystore and its passwords must never be committed.
 android/kali-release.jks
