@@ -1,6 +1,6 @@
 /* Kali Code PWA service worker - offline shell + background sync. */
-const CACHE = "kali-code-v1";
-const SHELL = ["/", "/manifest.json", "/icon.svg", "/app.js"];
+const CACHE = "kali-code-v2";
+const SHELL = ["/", "/mobile/manifest.json", "/mobile/icon.svg", "/mobile/app.js"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(
@@ -49,8 +49,8 @@ self.addEventListener("push", (e) => {
   e.waitUntil(
     self.registration.showNotification(title, {
       body: body,
-      icon: "/icon-192.png",
-      badge: "/icon-192.png",
+      icon: "/mobile/icon-192.png",
+      badge: "/mobile/icon-192.png",
       data: data,
     })
   );

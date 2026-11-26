@@ -35,9 +35,15 @@ def clean() -> None:
 
 
 def collect_data() -> list[tuple[str, str]]:
-    """(source, destination) pairs for PyInstaller --add-data."""
+    """(source, destination) pairs for PyInstaller --add-data.
+
+    The `assets` folder carries the WebView2 loader DLL. It is bundled as
+    data (not a binary) because it is loaded by absolute path at runtime
+    rather than being imported - Windows resolves the loader's own
+    dependencies from the WebView2 runtime folder anyway.
+    """
     pairs: list[tuple[str, str]] = []
-    for sub in ("skills", "assets", "systemprompt"):
+    for sub in ("skills", "assets", "systemprompt", "mobile", "desktop"):
         src = ROOT / "kali" / sub
         if src.exists():
             pairs.append((str(src), f"kali/{sub}"))

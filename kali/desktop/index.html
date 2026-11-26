@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kali Code</title>
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/desktop/style.css">
+</head>
+<body>
+
+<!-- ================= lock / token gate ================= -->
+<div id="lock" class="lock">
+  <div class="lockbox">
+    <div class="brand">
+      <img src="/icon.svg" alt="" class="logo">
+      <div>
+        <h1>Kali Code</h1>
+        <p class="sub">An accurate copy of the Claude Code agentic coding CLI</p>
+      </div>
+    </div>
+    <label for="token">Access token</label>
+    <input id="token" type="password" autocomplete="off" placeholder="paste the server token">
+    <div id="lockerr" class="lockerr"></div>
+    <button id="connect" class="primary">Connect</button>
+    <p class="hint">The token is printed by the server when it starts.</p>
+  </div>
+</div>
+
+<!-- ================= app ================= -->
+<div id="app" class="app hidden">
+
+  <!-- ---- left rail: sessions ---- -->
+  <aside class="rail" id="rail">
+    <div class="railhead">
+      <button id="newSession" class="newbtn" title="New session (Ctrl+N)">
+        <span class="plus">+</span><span>New session</span>
+      </button>
+    </div>
+    <div class="searchwrap">
+      <input id="sessionSearch" class="search" placeholder="Search sessions…">
+    </div>
+    <div id="sessionList" class="sessionlist"></div>
+    <div class="railfoot">
+      <button id="toggleArchive" class="ghost">Archived</button>
+      <button id="showShortcuts" class="ghost">?</button>
+    </div>
+  </aside>
+
+  <!-- ---- center: chat + prompt ---- -->
+  <main class="center">
+    <header class="topbar">
+      <div class="crumb">
+        <span id="sessionTitle" class="stitle">New session</span>
+        <span id="statusDot" class="dot"></span>
+      </div>
+      <div class="topactions">
+        <button id="viewMode" class="chip" title="Cycle view mode (Ctrl+O)">Normal</button>
+        <button id="sideChat" class="chip" title="Side chat (Ctrl+;)">Side chat</button>
+        <button id="railToggle" class="icon" title="Toggle details panel">&#9776;</button>
+      </div>
+    </header>
+
+    <div id="chat" class="chat"></div>
+
+    <div id="sideChatBox" class="sidechat hidden">
+      <div class="sidehead">
+        <span>Side chat</span>
+        <button id="sideClose" class="icon">&times;</button>
+      </div>
+      <div id="sideLog" class="sidelog"></div>
+      <div class="sideinput">
+        <input id="sideInput" placeholder="Ask about this session…">
+        <button id="sideSend">Ask</button>
+      </div>
+    </div>
+
+    <div class="promptwrap">
+      <div id="suggestion" class="suggestion hidden"></div>
+      <div class="promptbox">
+        <textarea id="input" rows="1" placeholder="Ask Kali Code…  (try / for commands)"></textarea>
+        <button id="attach" class="icon attach" title="Attach a file">+</button>
+        <input id="fileInput" type="file" multiple hidden>
+      </div>
+      <div class="promptrow">
+        <button id="envBtn" class="pill" title="Where the agent runs">Local</button>
+        <button id="cwdBtn" class="pill" title="Project folder">…</button>
+        <button id="worktreeBtn" class="pill" title="Run in an isolated git worktree">Worktree</button>
+        <span class="spacer"></span>
+        <button id="modeBtn" class="pill" title="Permission mode (Ctrl+Shift+M)">Manual</button>
+        <button id="modelBtn" class="pill" title="Model (Ctrl+Shift+I)">model</button>
+        <button id="ctxBtn" class="pill ctx" title="Context usage">0%</button>
+        <button id="send" class="send" title="Send (Enter)">&#8593;</button>
+      </div>
+    </div>
+  </main>
+
+  <!-- ---- right: session details rail ---- -->
+  <aside class="details" id="details">
+    <div class="dcard">
+      <div class="dlabel">Environment</div>
+      <div class="dvalue" id="dEnv">Local</div>
+      <div class="dsub" id="dCwd">—</div>
+    </div>
+    <div class="dcard clickable" id="dChanges">
+      <div class="dlabel">Changes</div>
+      <div class="dvalue" id="dChangesVal">No changes</div>
+    </div>
+    <div class="dcard clickable" id="dContext">
+      <div class="dlabel">Context</div>
+      <div class="dvalue" id="dCtxVal">0%</div>
+      <div class="ctxbar"><div id="ctxFill"></div></div>
+    </div>
+    <div class="dcard">
+      <div class="dlabel">Running</div>
+      <div class="dvalue" id="dRunning">Idle</div>
+    </div>
+    <div class="dcard">
+      <div class="dlabel">Pull request</div>
+      <div class="dvalue" id="dPr">—</div>
+    </div>
+  </aside>
+
+  <!-- ---- bottom: pane tabs ---- -->
+  <nav class="panes" id="panes">
+    <button class="ptab active" data-pane="chat">Chat</button>
+    <button class="ptab" data-pane="changes">Changes</button>
+    <button class="ptab" data-pane="files">Files</button>
+    <button class="ptab" data-pane="plan">Plan</button>
+    <button class="ptab" data-pane="tasks">Tasks</button>
+    <span class="spacer"></span>
+    <button class="ptab" id="stopAll" title="Interrupt the turn">Stop</button>
+  </nav>
+
+  <!-- ---- pane bodies ---- -->
+  <section class="panebody" id="pane-chat"></section>
+  <section class="panebody hidden" id="pane-changes">
+    <div id="diffList" class="difflist"><div class="empty">No changes yet.</div></div>
+  </section>
+  <section class="panebody hidden" id="pane-files">
+    <div class="filesplit">
+      <div id="fileTree" class="filetree"><div class="empty">—</div></div>
+      <div id="fileView" class="fileview"><div class="empty">Select a file.</div></div>
+    </div>
+  </section>
+  <section class="panebody hidden" id="pane-plan">
+    <div id="planText" class="plantext"><div class="empty">No plan yet.</div></div>
+  </section>
+  <section class="panebody hidden" id="pane-tasks">
+    <div id="taskList" class="tasklist"><div class="empty">No background tasks.</div></div>
+  </section>
+
+</div>
+
+<!-- ================= menu popup ================= -->
+<div id="menu" class="menu hidden">
+  <div id="menuItems" class="menuitems"></div>
+</div>
+
+<!-- ================= modal ================= -->
+<div id="modal" class="modal hidden">
+  <div class="modalbox">
+    <div id="modalTitle" class="modaltitle"></div>
+    <div id="modalBody" class="modalbody"></div>
+    <div id="modalBtns" class="modalbtns"></div>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="/desktop/app.js"></script>
+</body>
+</html>

@@ -21,9 +21,11 @@ if not ENV.get("NVIDIA_API_KEY") and not ENV.get("NIM_API_KEY"):
         pass
 
 
-def run(prompt: str, model: str = "stepfun-ai/step-5-preview", extra: list[str] | None = None,
+def run(prompt: str, model: str | None = None, extra: list[str] | None = None,
         fmt: str = "json") -> tuple[int, str, float]:
-    cmd = [PY, "-m", "kali", "-p", prompt, "--model", model,
+    cmd = [PY, "-m", "kali", "-p", prompt, "--model",
+           model or os.environ.get("KALI_TEST_MODEL",
+                                   "minimaxai/minimax-m3.1-flash"),
            "--dangerously-skip-permissions", "--output-format", fmt] + (extra or [])
     t0 = time.time()
     proc = subprocess.run(cmd, capture_output=True, text=True, cwd=ROOT, env=ENV, timeout=420)
@@ -42,7 +44,13 @@ def main() -> int:
 
     # 2. Read tool on a real file
     rc, out, dt = run("Read the file kali/__init__.py and tell me the exact version string it defines. Reply with just the version number.")
-    ok = rc == 0 and "1.0.0" in out
+    try:
+        from kali import __version__
+
+        expected = __version__
+    except Exception:
+        expected = "1.1.0"
+    ok = rc == 0 and expected in out
     print(f"[read tool]       rc={rc} {dt:.0f}s -> {'PASS' if ok else 'FAIL'}")
     if not ok:
         failures.append(("read", out[-600:]))
@@ -55,7 +63,8 @@ def main() -> int:
         failures.append(("tasks", out[-600:]))
 
     # 4. Second model sanity (minimax, faster)
-    rc, out, dt = run("Reply with exactly: MINIMAX_OK", model="minimaxai/minimax-m3.1-flash")
+    rc, out, dt = run("Reply with exactly: MINIMAX_OK",
+                      model="minimaxai/minimax-m3.1-flash")
     ok = rc == 0 and "MINIMAX_OK" in out
     print(f"[minimax model]   rc={rc} {dt:.0f}s -> {'PASS' if ok else 'FAIL'}")
     if not ok:

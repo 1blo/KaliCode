@@ -54,13 +54,18 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--output-format", choices=["text", "json", "stream-json"], default="text")
     p.add_argument("--input-format", choices=["text", "stream-json"], default="text")
     p.add_argument("--serve", action="store_true",
-                   help="run the mobile companion server instead of the REPL")
+                   help="run the server instead of the REPL (for the desktop app, "
+                        "the phone or the APK)")
     p.add_argument("--serve-host", default="0.0.0.0", dest="serve_host",
                    help="bind address for --serve (default: 0.0.0.0)")
     p.add_argument("--serve-port", type=int, default=8000, dest="serve_port",
                    help="port for --serve (default: 8000)")
     p.add_argument("--serve-token", default=None, dest="serve_token",
                    help="access token the phone must present (default: generated)")
+    p.add_argument("--gui", action="store_true",
+                   help="launch the desktop graphical interface")
+    p.add_argument("--gui-port", type=int, default=0, dest="gui_port",
+                   help="port for --gui (default: an available one)")
     p.add_argument("--version", action="version", version=f"Kali Code {__version__}")
     return p
 
@@ -83,6 +88,16 @@ def main(argv: list[str] | None = None) -> int:
 async def _amain(args) -> int:
     settings = load_settings()
     apply_env(settings)
+
+    # Desktop graphical interface.
+    if args.gui:
+        from .desktop_shell import run_gui
+
+        mode = args.permission_mode or settings.get("permissionMode", "default")
+        return run_gui(cwd=os.getcwd(), port=args.gui_port,
+                       token=args.serve_token,
+                       model=args.model or settings.get("model"),
+                       permission_mode=mode)
 
     # Mobile companion server: a different entry point, not a REPL mode.
     if args.serve:

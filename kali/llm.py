@@ -98,7 +98,7 @@ async def stream_chat(
     payload: dict,
     on_event: Callable[[StreamEvent], None] | None = None,
     timeout: float = 600.0,
-    max_retries: int = 2,
+    max_retries: int = 4,
 ) -> LLMResponse:
     """Stream a completion, invoke on_event per delta, return the accumulated response."""
     result = LLMResponse()
@@ -116,7 +116,7 @@ async def stream_chat(
                         body = (await resp.aread()).decode("utf-8", "replace")
                         if resp.status_code in RETRYABLE_STATUS and attempt < max_retries:
                             last_error = f"HTTP {resp.status_code}: {body[:300]}"
-                            await _backoff(attempt)
+                            await _backoff(attempt, _retry_after(resp.headers))
                             continue
                         raise LLMError(f"HTTP {resp.status_code} from the API: {body[:800]}")
 
@@ -189,10 +189,37 @@ async def stream_chat(
     return result
 
 
-async def _backoff(attempt: int) -> None:
+def _retry_after(headers) -> float | None:
+    """The `Retry-After` header as a number of seconds, if it has one."""
+    try:
+        raw = headers.get("retry-after")
+    except Exception:
+        return None
+    if not raw:
+        return None
+    try:
+        return float(str(raw).strip())
+    except ValueError:
+        return None
+
+
+async def _backoff(attempt: int, retry_after: float | None = None) -> None:
+    """Wait before the next attempt.
+
+    A 429 from the API usually means the account hit its request rate.
+    The `Retry-After` header is honoured when the server sends one;
+    otherwise the wait grows exponentially.
+    """
     import asyncio
 
-    await asyncio.sleep(min(2 ** attempt, 8) + 0.25)
+    if retry_after is not None and retry_after > 0:
+        delay = min(retry_after, 120.0)
+    elif attempt >= 2:
+        # Rate limits need a longer pause than a transient 5xx.
+        delay = min(2 ** attempt, 60) + 0.5
+    else:
+        delay = min(2 ** attempt, 8) + 0.25
+    await asyncio.sleep(delay)
 
 
 def extract_reasoning(message: dict) -> str:

@@ -86,6 +86,23 @@ scratch/
 *.dll
 *.pdb
 
+# The WebView2 loader is a required runtime dependency of the desktop
+# app - it has to be in the repository so a clone can build an .exe.
+!kali/assets/WebView2Loader.dll
+
+# ---- Android -----------------------------------------------------------------
+# The release keystore and its passwords must never be committed.
+android/kali-release.jks
+android/keystore.properties
+android/*.jks
+android/local.properties
+android/.gradle/
+android/build/
+android/app/build/
+android/.idea/
+*.apk
+!android/app/src/main/res/**/*.apk
+
 # ---- Roblox / Rojo -----------------------------------------------------------
 # Generated place files - always rebuild them with `rojo build`.
 build.rbxl

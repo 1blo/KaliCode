@@ -1,32 +1,46 @@
-"""Mobile companion server: expose the Kali Code agent over WebSocket.
+"""Kali Code server: the agent, exposed over WebSocket and REST.
 
-Runs the existing agent loop unchanged and relays every UI event to the phone.
-The phone sends prompts; the server streams text back and, when the agent needs
-permission, parks the turn until the phone answers.
+This is the core that both the desktop GUI and the Android APK talk to. The
+phone and the desktop app are *clients* - neither executes the agent.
 
-Designed for a stateless-ish host (Render free tier): the working tree is
-cloned from git at boot, so there is no persistent disk requirement.
+Architecture
+------------
+    ┌──────────────┐   HTTP + WebSocket   ┌─────────────────────────┐
+    │ Desktop GUI  │◄────────────────────►│                         │
+    │ Android APK  │◄────────────────────►│  kali.serve (this)      │
+    │ PWA client   │◄────────────────────►│                         │
+    └──────────────┘                       │  SessionRegistry        │
+                                           │  └─ Agent per session  │
+                                           └─────────────────────────┘
 
 Protocol (JSON over WebSocket, one object per message)
 -------------------------------------------------------
 client -> server
   {"type": "auth",     "token": "..."}
-  {"type": "prompt",   "text": "...", "session": "..."}
-  {"type": "reply",    "id": "<request id>", "answer": "allow"|"deny"|"always"|...}
+  {"type": "hello",    "session": "<id>"|null, "cwd": "...", ...}
+  {"type": "prompt",   "text": "...", "session": "<id>"}
+  {"type": "reply",    "id": "<request id>", "answer": "allow"|"deny"|"always"}
   {"type": "answer",   "id": "<question id>", "value": "..."}
-  {"type": "interrupt"}
+  {"type": "interrupt", "session": "<id>"}
+  {"type": "new_session", "cwd": "...", "model": "...", ...}
+  {"type": "switch_session", "session": "<id>"}
+  {"type": "set_model", "model": "..."}
+  {"type": "set_mode",  "mode": "..."}
+  {"type": "reset"}
   {"type": "ping"}
 
 server -> client
   {"type": "ready",        "session": "...", "model": "...", "cwd": "..."}
+  {"type": "sessions",     "sessions": [...]}
   {"type": "thinking"}
   {"type": "text",         "text": "..."}
   {"type": "tool_start",   "name": "...", "args": {...}}
   {"type": "tool_result",  "name": "...", "ok": true, "output": "...", "elapsed": 1.2}
   {"type": "tool_denied",  "name": "...", "reason": "..."}
   {"type": "permission",   "id": "...", "name": "...", "args": {...}, "summary": "..."}
-  {"type": "question",     "id": "...", "questions": [...]}
+  {"type": "question",     "id": "...", "question": {...}}
   {"type": "plan",         "id": "...", "plan": "..."}
+  {"type": "diff",         "path": "...", "diff": "..."}
   {"type": "error",        "message": "..."}
   {"type": "done",         "text": "...", "usage": {...}}
   {"type": "pong"}
@@ -47,18 +61,17 @@ from typing import Any
 from .agent import Agent
 from .config import AgentConfig, load_settings
 from .llm import StreamEvent
+from .sessions import Session, SessionRegistry
 
 
 # --------------------------------------------------------------------------- #
 # Auth
 # --------------------------------------------------------------------------- #
 def resolve_token() -> str:
-    """The shared secret the phone must present.
+    """The shared secret every client must present.
 
     Order: KALI_SERVER_TOKEN env -> ~/.kali/settings.json -> generated.
-    A generated token is printed once at startup so the operator can paste it
-    into the PWA. It is never written to disk (the free-tier host has no
-    persistent disk anyway, so it would not survive a restart).
+    A generated token is printed once at startup. It is never written to disk.
     """
     token = os.environ.get("KALI_SERVER_TOKEN", "").strip()
     if token:
@@ -80,13 +93,13 @@ def _constant_time_eq(a: str, b: str) -> bool:
 
 
 # --------------------------------------------------------------------------- #
-# Remote UI - implements the same contract as kali.ui.ConsoleUI
+# Remote UI - implements the same contract as kali.ui.UI
 # --------------------------------------------------------------------------- #
 class RemoteUI:
-    """Collects agent UI events and forwards them to the connected phone.
+    """Collects agent UI events and forwards them to the connected client.
 
-    Blocking interactions (permission prompts, AskUserQuestion, plan approval)
-    are parked on an asyncio Event until the phone replies.
+    Blocking interactions (permission prompts, AskUserQuestion, plan
+    approval) are parked on an asyncio Event until the client replies.
     """
 
     def __init__(self, conn: "Connection"):
@@ -224,7 +237,7 @@ def _safe_args(args: Any) -> Any:
 
 
 def _arg_summary(name: str, args: dict) -> str:
-    """One-line human summary of a tool call (mirrors kali.ui._arg_summary)."""
+    """One-line human summary of a tool call."""
     if not isinstance(args, dict):
         return ""
     for key in ("command", "file_path", "path", "notebook_path", "url",
@@ -237,17 +250,19 @@ def _arg_summary(name: str, args: dict) -> str:
 
 
 # --------------------------------------------------------------------------- #
-# Connection - one phone
+# Connection - one client (desktop, phone, or PWA)
 # --------------------------------------------------------------------------- #
 @dataclass(eq=False)
 class Connection:
     ws: Any
     token: str
+    registry: SessionRegistry
+    session: Session | None = None
     agent: Agent | None = None
     _replies: dict[str, asyncio.Future] = field(default_factory=dict)
     _lock: asyncio.Lock = field(default_factory=asyncio.Lock)
-    _busy: bool = False
 
+    # ------------------------------------------------------------------ send
     def emit(self, payload: dict) -> None:
         """Fire-and-forget JSON send (never raises into the agent)."""
         async def _send():
@@ -257,6 +272,13 @@ class Connection:
                 pass
         asyncio.create_task(_send())
 
+    async def send(self, payload: dict) -> None:
+        try:
+            await self.ws.send_text(json.dumps(payload, default=str))
+        except Exception:
+            pass
+
+    # ---------------------------------------------------------------- replies
     async def wait_for_reply(self, req_id: str, timeout: float = 900.0) -> str | None:
         loop = asyncio.get_running_loop()
         fut: asyncio.Future = loop.create_future()
@@ -278,15 +300,27 @@ class Connection:
         fut.set_result(value)
         return True
 
-    async def send(self, payload: dict) -> None:
-        await self.ws.send_text(json.dumps(payload, default=str))
+    # --------------------------------------------------------------- sessions
+    def bind(self, sess: Session) -> None:
+        """Attach this connection to a session."""
+        if self.session is not None:
+            self.session.unsubscribe(self.emit)
+        self.session = sess
+        self.agent = sess.agent
+        sess.subscribe(self.emit)
+
+    def unbind(self) -> None:
+        if self.session is not None:
+            self.session.unsubscribe(self.emit)
+        self.session = None
+        self.agent = None
 
 
 # --------------------------------------------------------------------------- #
 # Server
 # --------------------------------------------------------------------------- #
-class MobileServer:
-    """Starlette app exposing the agent over WebSocket + a small REST API."""
+class KaliServer:
+    """Starlette app exposing sessions over WebSocket + REST."""
 
     def __init__(self, token: str | None = None, cwd: str | None = None,
                  model: str | None = None, permission_mode: str | None = None):
@@ -294,24 +328,19 @@ class MobileServer:
         self.cwd = Path(cwd or os.environ.get("KALI_WORKSPACE", os.getcwd())).resolve()
         self.model = model or os.environ.get("KALI_MODEL") or ""
         self.permission_mode = permission_mode or os.environ.get("KALI_PERMISSION_MODE", "default")
+        self.registry = SessionRegistry(
+            default_cwd=self.cwd,
+            default_model=self.model,
+            default_permission_mode=self.permission_mode,
+        )
         self._conns: list[Connection] = []
-
-    # ------------------------------------------------------------------ setup
-    def _make_agent(self) -> Agent:
-        settings = load_settings()
-        cfg = AgentConfig.from_settings(settings)
-        if self.model:
-            cfg.model = self.model
-        if self.permission_mode:
-            cfg.permission_mode = self.permission_mode
-        cfg.settings = settings
-        agent = Agent(cfg, ui=None)
-        agent.ui = RemoteUI(self._active_conn)  # type: ignore[attr-defined]
-        agent.ui.agent = agent  # type: ignore[attr-defined]
-        agent.ui.conn = self._active_conn  # type: ignore[attr-defined]
-        return agent
+        self._push_subs: list[dict] = []
 
     # ------------------------------------------------------------------- http
+    def connected_clients(self) -> int:
+        """How many clients are currently attached."""
+        return len(self._conns)
+
     async def health(self, request):
         from starlette.responses import JSONResponse
 
@@ -320,34 +349,65 @@ class MobileServer:
             "service": "kali-code",
             "version": _version(),
             "connections": len(self._conns),
+            "sessions": len(self.registry.list(include_archived=True)),
             "workspace": str(self.cwd),
         })
 
     async def root(self, request):
-        from starlette.responses import FileResponse
-        from .resources import resource_dir
+        """Serve the desktop GUI (or the PWA on a phone)."""
+        from .resources import ui_base_dir
 
-        p = Path(resource_dir()) / "mobile" / "index.html"
+        base = Path(ui_base_dir())
+        # The desktop UI wins on a large screen; the PWA is the mobile build.
+        ua = str(request.headers.get("user-agent", "")).lower()
+        is_mobile = any(m in ua for m in ("android", "iphone", "mobile"))
+        name = "mobile/index.html" if is_mobile else "desktop/index.html"
+        p = base / name
         if p.exists():
-            return FileResponse(str(p))
+            return _ui_response(p)
+        p = base / "mobile" / "index.html"
+        if p.exists():
+            return _ui_response(p)
         from starlette.responses import PlainTextResponse
 
-        return PlainTextResponse("Kali Code mobile companion - PWA assets missing.")
+        return PlainTextResponse("Kali Code - UI assets missing.")
 
     async def static_asset(self, request):
-        """Serve a file from kali/mobile (manifest, icons, app.js, sw.js)."""
+        """Serve a file from kali/desktop or kali/mobile.
+
+        The bare routes (`/app.js`, `/style.css`, `/icon.svg`, ...) are
+        ambiguous: both UIs have a file with that name. The desktop UI is
+        served at `/desktop/...` and the mobile shell links its assets
+        relatively, so a bare request is resolved by the User-Agent.
+        """
         from starlette.exceptions import HTTPException
         from starlette.responses import FileResponse
-        from .resources import resource_dir
+        from .resources import ui_base_dir
 
-        # These are fixed routes, so derive the filename from the path.
-        name = str(request.url.path).strip("/")
-        if not name or "/" in name or ".." in name:
+        rel = str(request.url.path).strip("/")
+        if not rel or ".." in rel:
             raise HTTPException(status_code=404)
-        p = Path(resource_dir()) / "mobile" / name
-        if not p.exists() or not p.is_file():
+
+        base = Path(ui_base_dir())
+        parts = rel.split("/")
+
+        if len(parts) == 1:
+            # A bare asset name - pick the shell that matches the client.
+            ua = str(request.headers.get("user-agent", "")).lower()
+            is_mobile = any(m in ua for m in ("android", "iphone", "mobile"))
+            order = ("mobile", "desktop") if is_mobile else ("desktop", "mobile")
+            for sub in order:
+                cand = base / sub / rel
+                if cand.exists() and cand.is_file():
+                    return _ui_response(cand)
             raise HTTPException(status_code=404)
-        return FileResponse(str(p))
+
+        if parts[0] not in ("desktop", "mobile"):
+            raise HTTPException(status_code=404)
+        cand = base.joinpath(*parts)
+        if not cand.exists() or not cand.is_file():
+            raise HTTPException(status_code=404)
+        return _ui_response(cand)
 
     async def push_subscribe(self, request):
         """Store a Web Push subscription for later notifications."""
@@ -358,60 +418,196 @@ class MobileServer:
         self._push_subs.append(body)
         return _json({"ok": True, "count": len(self._push_subs)})
 
-    _push_subs: list[dict] = []
+    # ------------------------------------------------------------------- REST
+    async def api_sessions(self, request):
+        """List sessions."""
+        include_archived = request.query_params.get("archived") == "1"
+        items = [i.to_dict() for i in self.registry.list(include_archived)]
+        return _json({"sessions": items})
+
+    async def api_session_create(self, request):
+        """Create a session."""
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        sess = self.registry.create(
+            cwd=body.get("cwd"),
+            model=body.get("model"),
+            permission_mode=body.get("permissionMode"),
+            title=body.get("title"),
+            worktree=bool(body.get("worktree")),
+        )
+        return _json({"session": sess.info.to_dict()})
+
+    async def api_session_get(self, request):
+        sid = request.path_params.get("sid", "")
+        sess = self.registry.get(sid)
+        if not sess:
+            return _json({"error": "not found"}, status=404)
+        self.registry.refresh_usage(sess)
+        return _json({"session": sess.info.to_dict()})
+
+    async def api_session_delete(self, request):
+        sid = request.path_params.get("sid", "")
+        ok = self.registry.delete(sid)
+        return _json({"ok": ok})
+
+    async def api_session_archive(self, request):
+        sid = request.path_params.get("sid", "")
+        ok = self.registry.archive(sid)
+        return _json({"ok": ok})
+
+    async def api_diff(self, request):
+        """Unified diff for a session's changed files."""
+        sid = request.query_params.get("session", "")
+        sess = self.registry.get(sid)
+        if not sess or not sess.agent:
+            return _json({"error": "not found"}, status=404)
+        diffs = []
+        for entry in sess.agent.edits[:50]:
+            try:
+                path = entry.split(":", 1)[1]
+                diffs.append({"path": path, "diff": _file_diff(path)})
+            except Exception:
+                continue
+        return _json({"diffs": diffs})
+
+    # ------------------------------------------------------------- files
+    async def api_files(self, request):
+        """Directory listing for the Files pane."""
+        raw = request.query_params.get("cwd", "")
+        root = Path(raw).resolve() if raw else self.cwd
+        if not root.is_dir():
+            return _json({"error": "not a directory"}, status=400)
+
+        def walk(d: Path, depth: int = 0):
+            if depth > 3:
+                return []
+            out = []
+            try:
+                entries = sorted(d.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower()))
+            except OSError:
+                return []
+            for p in entries:
+                if p.name.startswith(".") or p.name in ("node_modules", "__pycache__",
+                                                      "venv", ".venv", "dist", "build"):
+                    continue
+                if p.is_dir():
+                    out.append({"name": p.name, "dir": True, "children": walk(p, depth + 1)})
+                else:
+                    out.append({"name": p.name, "dir": False, "size": p.stat().st_size})
+            return out
+
+        return _json({"root": str(root), "entries": walk(root)})
+
+    async def api_file(self, request):
+        """Read one file for the Files pane."""
+        raw_cwd = request.query_params.get("cwd", "")
+        rel = request.query_params.get("path", "")
+        root = Path(raw_cwd).resolve() if raw_cwd else self.cwd
+        target = (root / rel).resolve()
+        # Never serve anything outside the project folder.
+        try:
+            target.relative_to(root)
+        except ValueError:
+            return _json({"error": "outside the workspace"}, status=403)
+        if not target.is_file():
+            return _json({"error": "not found"}, status=404)
+        try:
+            content = target.read_text("utf-8", errors="replace")
+        except OSError as e:
+            return _json({"error": str(e)}, status=400)
+        return _json({"path": str(target), "content": content[:400000]})
+
+    # --------------------------------------------------------- side chat
+    async def api_side_chat(self, request):
+        """Answer a question using the session's context, without adding to it."""
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        sid = str(body.get("session", ""))
+        question = str(body.get("question", "")).strip()
+        if not question:
+            return _json({"error": "no question"}, status=400)
+        sess = self.registry.get(sid)
+        if not sess:
+            return _json({"error": "no session"}, status=404)
+        agent = self.registry.ensure_agent(sess)
+        answer = await agent.side_chat(question)
+        return _json({"answer": answer})
 
     # -------------------------------------------------------------- websocket
     async def websocket(self, websocket):
         await websocket.accept()
-        token = self.token
-        conn = Connection(ws=websocket, token=token)
-        self._active_conn = conn  # type: ignore[attr-defined]
-
-        # ---- auth handshake (first message must carry the token)
-        try:
-            raw = await asyncio.wait_for(websocket.receive_text(), timeout=30)
-            hello = json.loads(raw)
-        except Exception:
-            await conn.send({"type": "error", "message": "handshake timeout"})
-            await websocket.close()
-            return
-
-        supplied = str(hello.get("token", "")) if isinstance(hello, dict) else ""
-        if not supplied or not _constant_time_eq(supplied, token):
-            await conn.send({"type": "error", "message": "unauthorized"})
-            with contextlib.suppress(Exception):
-                await websocket.close()
-            return
-
+        conn = Connection(ws=websocket, token=self.token, registry=self.registry)
         self._conns.append(conn)
+
         try:
-            agent = self._make_agent()
-            conn.agent = agent
-            agent.ui.conn = conn  # type: ignore[attr-defined]
+            # ---- auth handshake (first message must carry the token)
+            try:
+                raw = await asyncio.wait_for(websocket.receive_text(), timeout=30)
+                hello = json.loads(raw)
+            except Exception:
+                await conn.send({"type": "error", "message": "handshake timeout"})
+                await websocket.close()
+                return
+
+            supplied = str(hello.get("token", "")) if isinstance(hello, dict) else ""
+            if not supplied or not _constant_time_eq(supplied, self.token):
+                await conn.send({"type": "error", "message": "unauthorized"})
+                with contextlib.suppress(Exception):
+                    await websocket.close()
+                return
+
+            # ---- pick or create a session
+            sess = self._session_for(conn, hello)
             await conn.send({
                 "type": "ready",
-                "session": agent.session_id,
-                "model": agent.cfg.model,
-                "cwd": str(self.cwd),
+                "session": sess.info.id,
+                "model": sess.info.model,
+                "cwd": sess.info.cwd,
                 "version": _version(),
+                "sessions": [i.to_dict() for i in self.registry.list()],
             })
-            await self._pump(websocket, conn, agent)
+            await self._pump(websocket, conn, sess)
         except Exception as e:
             with contextlib.suppress(Exception):
                 await conn.send({"type": "error", "message": f"{type(e).__name__}: {e}"})
         finally:
+            conn.unbind()
             if conn in self._conns:
                 self._conns.remove(conn)
             with contextlib.suppress(Exception):
                 await websocket.close()
 
-    async def _pump(self, websocket, conn: Connection, agent: Agent) -> None:
+    def _session_for(self, conn: Connection, hello: dict) -> Session:
+        """Resolve the session a client wants, creating one if needed."""
+        sid = hello.get("session")
+        sess = self.registry.get(sid) if sid else None
+        if sess is None:
+            sess = self.registry.create(
+                cwd=hello.get("cwd"),
+                model=hello.get("model"),
+                permission_mode=hello.get("permissionMode"),
+                worktree=bool(hello.get("worktree")),
+            )
+        agent = self.registry.ensure_agent(sess)
+        conn.bind(sess)
+        conn.agent = agent
+        agent.ui = RemoteUI(conn)  # type: ignore[attr-defined]
+        agent.ui.agent = agent  # type: ignore[attr-defined]
+        agent.ui.conn = conn  # type: ignore[attr-defined]
+        return sess
+
+    async def _pump(self, websocket, conn: Connection, sess: Session) -> None:
         """Read client messages.
 
         A turn runs as a background task so this loop stays free to read the
-        phone's replies (permission approvals, question answers). Blocking here
-        would deadlock: the agent parks on wait_for_reply() while the only
-        reader of the reply is this loop.
+        client's replies (permission approvals, question answers). Blocking
+        here would deadlock: the agent parks on wait_for_reply() while the
+        only reader of the reply is this loop.
         """
         turn_task: asyncio.Task | None = None
 
@@ -432,38 +628,98 @@ class MobileServer:
             if mtype == "ping":
                 await conn.send({"type": "pong"})
             elif mtype == "prompt":
-                if conn._busy:
+                if sess._busy:
                     conn.emit({"type": "error", "message": "a turn is already running"})
                     continue
-                conn._busy = True
+                sess._busy = True
+                sess.info.status = "running"
                 turn_task = asyncio.create_task(
-                    self._run_turn(conn, agent, str(msg.get("text", ""))))
+                    self._run_turn(conn, sess, str(msg.get("text", ""))))
             elif mtype == "reply":
                 await conn.resolve(str(msg.get("id", "")), str(msg.get("answer", "")))
             elif mtype == "answer":
                 await conn.resolve(str(msg.get("id", "")), str(msg.get("value", "")))
             elif mtype == "interrupt":
-                agent.interrupted = True
+                if sess.agent:
+                    sess.agent.interrupted = True
                 conn.emit({"type": "interrupted"})
+            elif mtype == "new_session":
+                new = self.registry.create(
+                    cwd=msg.get("cwd"),
+                    model=msg.get("model"),
+                    permission_mode=msg.get("permissionMode"),
+                    worktree=bool(msg.get("worktree")),
+                )
+                self.registry.ensure_agent(new)
+                conn.bind(new)
+                sess = new
+                conn.agent = new.agent
+                new.agent.ui = RemoteUI(conn)  # type: ignore[attr-defined]
+                new.agent.ui.agent = new.agent  # type: ignore[attr-defined]
+                new.agent.ui.conn = conn  # type: ignore[attr-defined]
+                await conn.send({"type": "ready", "session": new.info.id,
+                                 "model": new.info.model, "cwd": new.info.cwd,
+                                 "version": _version(),
+                                 "sessions": [i.to_dict() for i in self.registry.list()]})
+            elif mtype == "switch_session":
+                target = self.registry.get(str(msg.get("session", "")))
+                if target is None:
+                    conn.emit({"type": "error", "message": "no such session"})
+                    continue
+                self.registry.ensure_agent(target)
+                conn.bind(target)
+                sess = target
+                conn.agent = target.agent
+                target.agent.ui = RemoteUI(conn)  # type: ignore[attr-defined]
+                target.agent.ui.agent = target.agent  # type: ignore[attr-defined]
+                target.agent.ui.conn = conn  # type: ignore[attr-defined]
+                await conn.send({"type": "ready", "session": target.info.id,
+                                 "model": target.info.model, "cwd": target.info.cwd,
+                                 "version": _version(),
+                                 "sessions": [i.to_dict() for i in self.registry.list()]})
+            elif mtype == "set_model":
+                if self.registry.set_model(sess.info.id, str(msg.get("model", ""))):
+                    conn.emit({"type": "session_meta", "session": sess.info.to_dict()})
+                else:
+                    conn.emit({"type": "error", "message": "unknown model"})
+            elif mtype == "set_mode":
+                if self.registry.set_permission_mode(sess.info.id, str(msg.get("mode", ""))):
+                    conn.emit({"type": "session_meta", "session": sess.info.to_dict()})
+                else:
+                    conn.emit({"type": "error", "message": "unknown permission mode"})
+            elif mtype == "rename":
+                if self.registry.rename(sess.info.id, str(msg.get("title", ""))):
+                    conn.emit({"type": "session_meta", "session": sess.info.to_dict()})
+            elif mtype == "sessions":
+                await conn.send({"type": "sessions",
+                                 "sessions": [i.to_dict() for i in self.registry.list()]})
             elif mtype == "reset":
-                agent.messages.clear()
-                agent.session_id = uuid.uuid4().hex[:16]
-                conn.emit({"type": "ready", "session": agent.session_id,
-                           "model": agent.cfg.model, "cwd": str(self.cwd)})
+                if sess.agent:
+                    sess.agent.messages.clear()
+                    sess.agent.session_id = uuid.uuid4().hex[:16]
+                conn.emit({"type": "ready", "session": sess.info.id,
+                           "model": sess.info.model, "cwd": sess.info.cwd})
 
-    async def _run_turn(self, conn: Connection, agent: Agent, text: str) -> None:
+    async def _run_turn(self, conn: Connection, sess: Session, text: str) -> None:
         if not text.strip():
-            conn._busy = False
+            sess._busy = False
             return
+        agent = self.registry.ensure_agent(sess)
         t0 = time.time()
         try:
             result = await agent.run_turn(text)
+            self.registry.refresh_usage(sess)
+            if not sess.info.title or sess.info.title == "New session":
+                title = agent.session_title or text.strip()[:60]
+                if title:
+                    sess.info.title = title
             await conn.send({
                 "type": "done",
                 "text": result.text,
                 "usage": result.usage,
                 "elapsed": round(time.time() - t0, 2),
-                "session": agent.session_id,
+                "session": sess.info.id,
+                "meta": sess.info.to_dict(),
             })
         except asyncio.CancelledError:
             raise
@@ -471,7 +727,32 @@ class MobileServer:
             with contextlib.suppress(Exception):
                 await conn.send({"type": "error", "message": f"{type(e).__name__}: {e}"})
         finally:
-            conn._busy = False
+            sess._busy = False
+            sess.info.status = "idle"
+            sess.info.updated = time.time()
+
+
+def _file_diff(path: str, context: int = 3) -> str:
+    """Unified diff of a file against its git HEAD (or empty for new files)."""
+    import difflib
+    import subprocess
+
+    p = Path(path)
+    try:
+        new = p.read_text("utf-8", errors="replace").splitlines(keepends=True)
+    except OSError:
+        return ""
+    old: list[str] = []
+    try:
+        proc = subprocess.run(["git", "show", f"HEAD:{path}"], capture_output=True,
+                              text=True, encoding="utf-8", errors="replace", timeout=30)
+        if proc.returncode == 0:
+            old = proc.stdout.splitlines(keepends=True)
+    except Exception:
+        pass
+    diff = difflib.unified_diff(old, new, fromfile=f"a/{path}", tofile=f"b/{path}",
+                                n=context)
+    return "".join(diff)
 
 
 def _version() -> str:
@@ -483,10 +764,28 @@ def _version() -> str:
         return "0.0.0"
 
 
-def _json(payload: dict):
+def _json(payload: dict, status: int = 200):
     from starlette.responses import JSONResponse
 
-    return JSONResponse(payload)
+    return JSONResponse(payload, status_code=status)
+
+
+def _ui_response(path: Path):
+    """Serve a UI asset, telling the browser not to cache it.
+
+    The desktop and mobile shells are served from a local server that is
+    restarted on every launch. A cached `app.js` from a previous run would
+    speak a stale protocol, so the assets are always revalidated.
+    """
+    from starlette.responses import FileResponse
+
+    return FileResponse(
+        str(path),
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate",
+            "Pragma": "no-cache",
+        },
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -494,24 +793,35 @@ def _json(payload: dict):
 # --------------------------------------------------------------------------- #
 def build_app(token: str | None = None, cwd: str | None = None,
               model: str | None = None, permission_mode: str | None = None):
-    """Return a Starlette ASGI app plus the MobileServer instance."""
+    """Return a Starlette ASGI app plus the KaliServer instance."""
     from starlette.applications import Starlette
     from starlette.routing import Route, WebSocketRoute
 
-    server = MobileServer(token=token, cwd=cwd, model=model,
-                          permission_mode=permission_mode)
+    server = KaliServer(token=token, cwd=cwd, model=model,
+                        permission_mode=permission_mode)
     routes = [
         Route("/", server.root, methods=["GET"]),
         Route("/health", server.health, methods=["GET"]),
         Route("/push/subscribe", server.push_subscribe, methods=["POST"]),
-        Route("/app.js", server.static_asset, methods=["GET"]),
-        Route("/sw.js", server.static_asset, methods=["GET"]),
-        Route("/manifest.json", server.static_asset, methods=["GET"]),
-        Route("/icon.svg", server.static_asset, methods=["GET"]),
-        Route("/icon-192.png", server.static_asset, methods=["GET"]),
-        Route("/icon-512.png", server.static_asset, methods=["GET"]),
+        Route("/api/sessions", server.api_sessions, methods=["GET"]),
+        Route("/api/sessions", server.api_session_create, methods=["POST"]),
+        Route("/api/sessions/{sid}", server.api_session_get, methods=["GET"]),
+        Route("/api/sessions/{sid}", server.api_session_delete, methods=["DELETE"]),
+        Route("/api/sessions/{sid}/archive", server.api_session_archive, methods=["POST"]),
+        Route("/api/diff", server.api_diff, methods=["GET"]),
+        Route("/api/files", server.api_files, methods=["GET"]),
+        Route("/api/file", server.api_file, methods=["GET"]),
+        Route("/api/side-chat", server.api_side_chat, methods=["POST"]),
         WebSocketRoute("/ws", server.websocket),
     ]
+
+    # Static UI assets.
+    for name in ("app.js", "style.css", "manifest.json", "icon.svg",
+                 "icon-192.png", "icon-512.png", "sw.js"):
+        routes.append(Route(f"/{name}", server.static_asset, methods=["GET"]))
+    routes.append(Route("/desktop/{path:path}", server.static_asset, methods=["GET"]))
+    routes.append(Route("/mobile/{path:path}", server.static_asset, methods=["GET"]))
+
     app = Starlette(routes=routes)
     app.state.server = server
     return app, server
@@ -520,22 +830,22 @@ def build_app(token: str | None = None, cwd: str | None = None,
 def serve(host: str = "0.0.0.0", port: int = 8000, token: str | None = None,
           cwd: str | None = None, model: str | None = None,
           permission_mode: str | None = None) -> None:
-    """Run the mobile companion server (blocking)."""
+    """Run the Kali Code server (blocking)."""
     import uvicorn
 
     app, server = build_app(token=token, cwd=cwd, model=model,
                              permission_mode=permission_mode)
-    print(f"Kali Code mobile companion listening on http://{host}:{port}")
+    print(f"Kali Code server listening on http://{host}:{port}")
     print(f"Workspace: {server.cwd}")
     print(f"Access token: {server.token}")
-    print("Paste the token into the mobile app to connect.")
+    print("Open the URL in a browser, or scan the QR code in the terminal.")
     uvicorn.run(app, host=host, port=port, log_level="info")
 
 
 if __name__ == "__main__":
     import argparse
 
-    p = argparse.ArgumentParser(description="Kali Code mobile companion server")
+    p = argparse.ArgumentParser(description="Kali Code server")
     p.add_argument("--host", default=os.environ.get("KALI_SERVER_HOST", "0.0.0.0"))
     p.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8000")))
     p.add_argument("--token", default=None)

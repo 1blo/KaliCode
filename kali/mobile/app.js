@@ -14,13 +14,24 @@
   let token = localStorage.getItem("kali_token") || "";
   let streaming = null;       // active assistant bubble element
   let busy = false;
+  let currentSession = localStorage.getItem("kali_session") || null;
 
   // ---------------------------------------------------------------- helpers
   function esc(s) {
-    return String(s == null ? "" : s)
-      .replace(/&/g, "&").replace(/</g, "<").replace(/>/g, ">");
+    const t = String(s == null ? "" : s);
+    let out = "";
+    for (let i = 0; i < t.length; i++) {
+      switch (t[i]) {
+      case "&": return "&amp;";
+      case "<": return "&lt;";
+      case ">": return "&gt;";
+      case String.fromCharCode(34): return "&quot;";
+      case String.fromCharCode(39): return "&#39;";
+        default: out += t[i];
+      }
+    }
+    return out;
   }
-
   function scrollBottom() {
     requestAnimationFrame(() => { log.scrollTop = log.scrollHeight; });
   }
@@ -77,7 +88,11 @@
     }
 
     ws.onopen = () => {
-      ws.send(JSON.stringify({ type: "auth", token }));
+      ws.send(JSON.stringify({
+        type: "hello",
+        token,
+        session: localStorage.getItem("kali_session") || null,
+      }));
     };
 
     ws.onmessage = (ev) => {
@@ -105,6 +120,10 @@
         sendBtn.disabled = false;
         titleEl.textContent = "Kali Code";
         if (msg.cwd) $("hint").textContent = "Workspace: " + msg.cwd;
+        if (msg.session) {
+          localStorage.setItem("kali_session", msg.session);
+          currentSession = msg.session;
+        }
         break;
       }
       case "thinking": {
@@ -335,7 +354,7 @@
   function notify(title, body) {
     if (!("Notification" in window)) return;
     if (Notification.permission === "granted") {
-      new Notification(title, { body: body, icon: "icon-192.png", badge: "icon-192.png" });
+      new Notification(title, { body: body, icon: "/mobile/icon-192.png", badge: "/mobile/icon-192.png" });
     }
   }
 
@@ -350,7 +369,7 @@
 
   // ------------------------------------------------------------------ init
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("/sw.js").catch(() => {});
+    navigator.serviceWorker.register("/mobile/sw.js").catch(() => {});
   }
   if (token) connect();
   else setStatus("locked", "off");

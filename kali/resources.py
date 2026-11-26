@@ -61,6 +61,26 @@ def resource_dir(*parts: str) -> Path:
     return candidate
 
 
+def ui_base_dir() -> Path:
+    """The directory that holds the `desktop/` and `mobile/` UI folders.
+
+    In a source checkout or a wheel install those folders sit next to this
+    module. In a PyInstaller bundle they are extracted to
+    `sys._MEIPASS/kali/...`, one level below the bundle root, so the
+    package directory is resolved from `__file__` rather than from
+    `bundle_dir()`.
+    """
+    pkg = Path(__file__).resolve().parent
+    if (pkg / "desktop").is_dir() or (pkg / "mobile").is_dir():
+        return pkg
+    # A frozen bundle: `__file__` points at the extracted package.
+    base = bundle_dir()
+    for cand in (base / "kali", base):
+        if (cand / "desktop").is_dir() or (cand / "mobile").is_dir():
+            return cand
+    return pkg
+
+
 def resource_text(*parts: str, default: str = "") -> str:
     """Read a bundled text resource, returning `default` when missing."""
     try:

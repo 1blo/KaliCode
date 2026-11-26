@@ -565,6 +565,44 @@ class Agent:
                           f"<compacted-summary>\n{summary}\n</compacted-summary>"}]
         return summary
 
+    async def side_chat(self, question: str) -> str:
+        """Answer a question using the session's context.
+
+        The side chat (`/btw`) never touches the main conversation: the
+        context is copied into a throwaway request and the answer is
+        returned to the caller without being appended to `self.messages`.
+        """
+        question = (question or "").strip()
+        if not question:
+            return ""
+
+        # A bounded slice of the conversation is enough context.
+        context = self.messages[-40:]
+        convo = json.dumps(context, default=str)[:60000]
+
+        payload = {
+            "model": self.cfg.model,
+            "max_tokens": min(self.cfg.max_tokens or 4096, 4096),
+            "messages": [
+                {"role": "system", "content":
+                 "You are a helpful assistant answering a side question about an "
+                 "ongoing coding session. Use the conversation context when it "
+                 "helps. Answer concisely and directly. Do not propose or take "
+                 "any action, and do not use tools."},
+                {"role": "user", "content":
+                 f"<session-context>\n{convo}\n</session-context>\n\n"
+                 f"<question>{question}</question>"},
+            ],
+        }
+        if self.cfg.reasoning_effort:
+            payload["reasoning_effort"] = self.cfg.reasoning_effort
+
+        try:
+            resp = await stream_chat(payload, timeout=180.0)
+            return resp.content.strip() or "(no answer)"
+        except LLMError as e:
+            return f"(side chat failed: {e})"
+
     async def _summarize(self) -> str:
         convo = json.dumps(self.messages[-80:], default=str)[:120000]
         payload = {

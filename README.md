@@ -18,7 +18,8 @@ An accurate copy of the Claude Code agentic coding CLI, reimplemented from scrat
 | **Permissions** | Rule-based allow/ask/deny, plan mode, `bypassPermissions`, `/alwaysallow` |
 | **Web search** | Multi-backend search engine with relevance checking and domain filtering |
 | **Discord** | Optional Rich Presence — logo, "Using Kali Code", AI-generated chat title, elapsed timer |
-| **Mobile** | PWA companion — chat, approve permissions and publish from your phone |
+| **Desktop app** | A Claude-app-style graphical interface — session rail, chat, diff view, file browser, plan and task panes |
+| **Mobile** | Native Android APK — chat, approve permissions and publish from your phone |
 | **Roblox** | Publish games headlessly via the Open Cloud API (Rojo + `.rbxl`, no Studio) |
 
 ---
@@ -65,15 +66,113 @@ kali -p "run tests" --output-format json  # machine-readable output
 kali --model moonshotai/kimi-k3.1-pro     # pick a model
 kali --permission-mode plan               # plan mode (read-only until approved)
 kali --dangerously-skip-permissions       # no permission prompts
+kali --gui                                # the desktop graphical interface
+kali --serve --serve-port 8000            # the server (for the phone / APK)
 ```
 
-### Models
+---
 
-| Picker label | Model id | Context |
-|---|---|---|
-| Step 5 Preview (default) | `stepfun-ai/step-5-preview` | 131k |
-| Kimi K3.1 Pro | `moonshotai/kimi-k3.1-pro` | 1M |
-| MiniMax M3.1 Flash | `minimaxai/minimax-m3.1-flash` | 131k |
+## Desktop app
+
+Kali Code ships a graphical interface modelled on the Claude Code tab: a
+session rail on the left, the conversation in the middle, a details panel on
+the right, and a row of panes along the bottom.
+
+```bash
+kali --gui
+```
+
+Or from the Windows executable:
+
+```
+KaliCode.exe --gui
+```
+
+The desktop app is a native window hosting the WebView2 runtime (preinstalled
+on Windows 10/11) pointed at a local server. If WebView2 is missing it falls
+back to opening the same interface in your default browser.
+
+The window starts its own server, so it connects by itself — there is no
+token to copy. The connection details are also written to
+`%LOCALAPPDATA%\KaliCode\desktop.json` so another client (the phone app, or
+the PWA) can pair with the running server.
+
+> **Note** The WebView2 runtime is a separate install on Windows. If the
+> window comes up blank, install the
+> [WebView2 Evergreen Runtime](https://developer.microsoft.com/microsoft-edge/webview2/)
+> and start the app again.
+
+| Panel | What it does |
+|---|---|
+| **Session rail** | Every session, searchable; new, rename and archive from the right-click menu |
+| **Prompt row** | Environment, project folder, worktree, permission mode, model, context usage |
+| **Chat** | Streaming output, tool cards, permission cards, plan approvals, questions |
+| **Changes** | Unified diff of everything the agent edited, with line counts |
+| **Files** | Browse the project and read files |
+| **Plan** | The plan the agent is working to |
+| **Tasks** | Background tasks |
+| **Details** | Environment, changes, context usage, what is running |
+| **Side chat** | Ask a question using the session's context without adding to the conversation (`Ctrl+;`) |
+
+### Keyboard shortcuts
+
+| Shortcut | Action |
+|---|---|
+| `Ctrl+N` | New session |
+| `Ctrl+;` | Side chat |
+| `Ctrl+O` | Cycle the view mode (Normal / Thinking / Verbose) |
+| `Ctrl+Shift+M` | Permission mode menu |
+| `Ctrl+Shift+I` | Model menu |
+| `Ctrl+Shift+D` | Toggle the diff pane |
+| `Esc` | Stop the response |
+| `Enter` / `Shift+Enter` | Send / new line |
+
+### View modes
+
+- **Normal** — tool calls collapsed into summaries.
+- **Thinking** — also shows the model's reasoning.
+- **Verbose** — every tool call, file read and intermediate step.
+
+---
+
+## Android app
+
+A native Kotlin + Jetpack Compose client for the same server. Like Claude's
+own mobile app, **the phone is a client — the agent always runs on the
+server**.
+
+Download `KaliCode-<version>-android.apk` from the
+[releases page](https://github.com/1blo/KaliCode/releases), copy it to the
+phone and install it (you will need to allow installs from that source).
+
+Then enter your server URL and the access token the server prints on start.
+
+<details>
+<summary>Building the APK yourself</summary>
+
+```bash
+python tools/make_keystore.py          # once - creates android/kali-release.jks
+python tools/build_apk.py --release    # -> android/app/build/outputs/apk/release/
+```
+
+The keystore and `android/keystore.properties` are git-ignored. Only
+`android/keystore.properties.example` is committed. You need the Android SDK
+(command-line tools, platform-tools, `platforms;android-35`, `build-tools`) and
+a JDK 17 or newer.
+</details>
+
+| Feature | Desktop | Android |
+|---|:--:|:--:|
+| Chat and streaming output | ✓ | ✓ |
+| Tool cards | ✓ | ✓ |
+| Approve / deny / always-allow | ✓ | ✓ |
+| Permission modes | all five | Manual, Accept edits, Plan, Auto |
+| Session list | ✓ | ✓ |
+| Model picker | ✓ | ✓ |
+| Diff view | ✓ | — |
+| File browser | ✓ | — |
+| Side chat | ✓ | — |
+| Runs the agent | ✓ | never |
 
 ---
 
@@ -190,30 +289,68 @@ third-party runtime dependency.
 
 ---
 
-## Mobile companion (PWA)
+## The server
 
-Run Kali Code as a server and talk to it from your phone. The phone is a thin
-client — the agent, its tools and your permissions all run on the host.
+Run Kali Code as a server and talk to it from the desktop app, the phone or
+the APK. Every client is thin — the agent, its tools and your permissions all
+run on the host.
 
 ```bash
 pip install -e ".[server]"
 kali --serve --serve-host 0.0.0.0 --serve-port 8000
 ```
 
-The server prints an access token. Open the served URL on your phone, paste the
-token, and you are connected.
+The server prints an access token. Open the served URL, paste the token, and
+you are connected.
 
 ```
-GET  /                 PWA shell (installable to the home screen)
+GET  /                 the UI (desktop on a large screen, PWA on a phone)
+GET  /desktop/...      the desktop interface
+GET  /mobile/...       the PWA client
 GET  /health           health check
+GET  /api/sessions     the session list
+GET  /api/diff         the unified diff of a session's edits
+GET  /api/files        a directory listing
+POST /api/side-chat    ask a question using a session's context
 WS   /ws               the agent session (JSON protocol)
 ```
 
-The phone can:
+A client can:
+
 - send prompts and stream the reply
 - **approve or deny tool calls** (the important one — you see the exact command)
 - answer `AskUserQuestion` prompts and approve plans
 - interrupt a running turn
+- create, switch, rename and archive sessions
+- change the model and the permission mode mid-session
+
+### The protocol
+
+```jsonc
+// client -> server
+{"type": "hello",  "token": "...", "session": "<id>|null"}
+{"type": "prompt", "text": "..."}
+{"type": "reply",  "id": "<request id>", "answer": "allow|deny|always"}
+{"type": "answer", "id": "<question id>", "value": "..."}
+{"type": "new_session", "cwd": "...", "model": "...", "worktree": true}
+{"type": "switch_session", "session": "<id>"}
+{"type": "set_model", "model": "..."}
+{"type": "set_mode",  "mode": "default|acceptEdits|plan|auto|bypassPermissions"}
+{"type": "interrupt"}
+{"type": "ping"}
+
+// server -> client
+{"type": "ready",        "session": "...", "model": "...", "cwd": "...", "sessions": [...]}
+{"type": "text",         "text": "..."}
+{"type": "thinking",     "text": "..."}
+{"type": "tool_start",   "name": "...", "args": {...}}
+{"type": "tool_result",  "name": "...", "ok": true, "output": "...", "elapsed": 1.2}
+{"type": "permission",   "id": "...", "name": "...", "summary": "..."}
+{"type": "question",     "id": "...", "question": {...}}
+{"type": "plan",         "id": "...", "plan": "..."}
+{"type": "done",         "text": "...", "usage": {...}}
+{"type": "error",        "message": "..."}
+```
 
 ### Deploying to Render (free tier)
 
@@ -336,12 +473,38 @@ kali/
 ├── systemprompt.py    # system prompt construction
 ├── ui.py              # rich console, streaming renderer, spinners
 ├── slash.py           # slash command router
-├── serve.py           # mobile companion: WebSocket server + remote UI
+├── serve.py           # the server: sessions, WebSocket + REST, remote UI
+├── sessions.py        # the session registry (one agent per session)
+├── desktop_shell.py   # the native WebView2 desktop window
 ├── roblox.py          # Rojo build + Open Cloud publish client
 ├── discord_presence.py# Discord IPC Rich Presence client
+├── desktop/           # the desktop interface (HTML/CSS/JS)
 ├── mobile/            # the PWA client (HTML/JS/manifest/service worker)
 └── tools/             # the built-in tool implementations
+
+android/                # the native Android client (Kotlin + Compose)
+├── app/src/main/java/com/kalicode/app/
+│   ├── MainActivity.kt
+│   ├── KaliViewModel.kt
+│   ├── net/            # the WebSocket client and the wire protocol
+│   └── ui/             # the Compose screens
+└── tools/              # the icon generator, the keystore generator
 ```
+
+### One server, three clients
+
+```
+┌──────────────┐   HTTP + WebSocket   ┌─────────────────────────┐
+│ Desktop GUI  │◄────────────────────►│                         │
+│ Android APK  │◄────────────────────►│  kali.serve (this)      │
+│ PWA client   │◄────────────────────►│                         │
+└──────────────┘                       │  SessionRegistry        │
+                                       │  └─ one Agent each     │
+                                       └─────────────────────────┘
+```
+
+The clients are thin. The agent, its tools and your permissions always run
+on the machine that owns the server.
 
 ### Design notes
 
@@ -351,6 +514,9 @@ kali/
 - **Streaming correctness.** The spinner is a *transient* `rich.Live` that is
   stopped before the first text token, so streamed output is never swallowed
   or overwritten.
+- **Turns run as background tasks.** The server's receive loop must stay free
+  to read permission approvals while the agent is parked on a prompt — awaiting
+  the turn inline would deadlock.
 - **Large MCP payloads.** Subprocess reads use a 16 MiB stream limit with
   `LimitOverrunError` recovery — some MCP servers emit single JSON lines
   larger than asyncio's default 64 KiB buffer.
@@ -369,7 +535,8 @@ python tests/smoke_cli.py               # end-to-end CLI
 python tests/smoke_mcp.py Roblox_Studio # MCP client
 python tests/smoke_websearch.py         # search backends
 python tests/smoke_alwaysallow_websearch.py
-python tests/smoke_serve.py             # mobile companion server
+python tests/smoke_serve.py             # the session server
+python tests/smoke_desktop.py           # the desktop interface + REST API
 python tests/smoke_roblox.py            # Rojo build + publish client
 ```
 

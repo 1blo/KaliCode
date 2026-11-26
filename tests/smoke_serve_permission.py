@@ -55,7 +55,7 @@ async def main() -> int:
 
     try:
         async with websockets.connect("ws://127.0.0.1:8767/ws") as ws:
-            await ws.send(json.dumps({"type": "auth", "token": TOKEN}))
+            await ws.send(json.dumps({"type": "hello", "token": TOKEN}))
             msg = json.loads(await asyncio.wait_for(ws.recv(), timeout=15))
             check("connected", msg.get("type") == "ready", str(msg))
 
